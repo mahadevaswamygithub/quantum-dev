@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Organization, Domain
+from apps.users.models import User
 
 class DomainSerializer(serializers.ModelSerializer):
     class Meta:
@@ -9,44 +10,43 @@ class DomainSerializer(serializers.ModelSerializer):
 class OrganizationSerializer(serializers.ModelSerializer):
     domains = DomainSerializer(many=True, read_only=True)
     user_count = serializers.SerializerMethodField()
+    parent_name = serializers.CharField(source='parent_organization.name', read_only=True)
     
     class Meta:
         model = Organization
         fields = [
             'id', 'schema_name', 'name', 'tenant_type', 
-            'parent_organization', 'is_active', 'created_on', 
-            'updated_on', 'domains', 'user_count'
+            'parent_organization', 'parent_name', 'is_active', 
+            'created_on', 'updated_on', 'domains', 'user_count'
         ]
         read_only_fields = ['schema_name', 'created_on', 'updated_on']
     
     def get_user_count(self, obj):
-        return obj.users.count()
+        return User.objects.filter(organization=obj).count()
 
-class OrganizationCreateSerializer(serializers.ModelSerializer):
-    domain_name = serializers.CharField(write_only=True)
+class OrganizationDetailSerializer(serializers.ModelSerializer):
+    domains = DomainSerializer(many=True, read_only=True)
+    users = serializers.SerializerMethodField()
+    stats = serializers.SerializerMethodField()
+    parent_name = serializers.CharField(source='parent_organization.name', read_only=True)
     
     class Meta:
         model = Organization
-        fields = ['name', 'tenant_type', 'parent_organization', 'domain_name']
+        fields = [
+            'id', 'schema_name', 'name', 'tenant_type', 
+            'parent_organization', 'parent_name', 'is_active', 
+            'created_on', 'updated_on', 'domains', 'users', 'stats'
+        ]
     
-    def create(self, validated_data):
-        domain_name = validated_data.pop('domain_name')
-        name = validated_data.get('name')
-        
-        # Create schema name from organization name
-        schema_name = name.lower().replace(' ', '_').replace('-', '_')
-        
-        # Create organization
-        organization = Organization.objects.create(
-            schema_name=schema_name,
-            **validated_data
-        )
-        
-        # Create domain
-        Domain.objects.create(
-            domain=domain_name,
-            tenant=organization,
-            is_primary=True
-        )
-        
-        return organization
+    def get_users(self, obj):
+        from apps.users.serializers import UserSerializer
+        users = User.objects.filter(organization=obj)[:10]  # First 10 users
+        return UserSerializer(users, many=True).data
+    
+    def get_stats(self, obj):
+        users = User.objects.filter(organization=obj)
+        return {
+            'total_users': users.count(),
+            'active_users': users.filter(is_active=True).count(),
+            'admins': users.filter(role__contains='ADMIN').count(),
+        }

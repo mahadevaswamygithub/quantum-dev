@@ -10,6 +10,7 @@ const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true',
   },
 });
 
@@ -60,11 +61,19 @@ api.interceptors.response.use(
   }
 );
 
-// Auth APIs
+// Add to existing authAPI object
 export const authAPI = {
   register: (data) => api.post('/auth/register/', data),
   login: (data) => api.post('/auth/login/', data),
   refreshToken: (refresh) => api.post('/auth/token/refresh/', { refresh }),
+  
+  // Password management
+  forgotPassword: (email) => api.post('/auth/forgot-password/', { email }),
+  resetPassword: (uid, token, new_password, confirm_password) => 
+    api.post('/auth/reset-password/', { uid, token, new_password, confirm_password }),
+  changePassword: (old_password, new_password, confirm_password) => 
+    api.post('/auth/change-password/', { old_password, new_password, confirm_password }),
+  
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
@@ -93,8 +102,11 @@ export const userAPI = {
 export const tenantAPI = {
   getTenants: () => api.get('/tenants/organizations/'),
   getTenantById: (id) => api.get(`/tenants/organizations/${id}/`),
+  getTenantUsers: (id) => api.get(`/tenants/organizations/${id}/users/`),
+  getTenantStats: (id) => api.get(`/tenants/organizations/${id}/stats/`),
   createTenant: (data) => api.post('/tenants/organizations/', data),
   updateTenant: (id, data) => api.put(`/tenants/organizations/${id}/`, data),
+  toggleTenantStatus: (id) => api.post(`/tenants/organizations/${id}/toggle_status/`),
 };
 
 export default api;

@@ -2,18 +2,18 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from django.db.models import Count, Q
 from .models import Organization
-from .serializers import OrganizationSerializer, OrganizationCreateSerializer
+from .serializers import OrganizationSerializer, OrganizationDetailSerializer
 from apps.users.models import User
+from apps.users.serializers import UserSerializer
 
 class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all()
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
-        if self.action == 'create':
-            return OrganizationCreateSerializer
+        if self.action == 'retrieve':
+            return OrganizationDetailSerializer
         return OrganizationSerializer
     
     def get_queryset(self):
@@ -21,7 +21,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         
         # Green Admin can see all organizations
         if user.role == 'GREEN_ADMIN':
-            return Organization.objects.all()
+            return Organization.objects.exclude(schema_name='public')
         
         # MSP users can see their organization and sub-organizations
         elif user.role in ['MSP_ADMIN', 'MSP_USER']:
@@ -39,24 +39,32 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         """Get all users for a specific organization"""
         organization = self.get_object()
         users = User.objects.filter(organization=organization)
-        from apps.users.serializers import UserSerializer
         serializer = UserSerializer(users, many=True)
         return Response(serializer.data)
     
     @action(detail=True, methods=['get'])
-    def sub_organizations(self, request, pk=None):
-        """Get sub-organizations for MSP"""
+    def stats(self, request, pk=None):
+        """Get statistics for a specific organization"""
         organization = self.get_object()
         
-        if organization.tenant_type != 'MSP':
-            return Response(
-                {'error': 'This organization is not an MSP'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        users = User.objects.filter(organization=organization)
+        active_users = users.filter(is_active=True).count()
         
-        sub_orgs = Organization.objects.filter(parent_organization=organization)
-        serializer = OrganizationSerializer(sub_orgs, many=True)
-        return Response(serializer.data)
+        stats = {
+            'total_users': users.count(),
+            'active_users': active_users,
+            'inactive_users': users.count() - active_users,
+            'admins': users.filter(role__contains='ADMIN').count(),
+            'regular_users': users.exclude(role__contains='ADMIN').count(),
+        }
+        
+        # For MSP, include sub-organization count
+        if organization.tenant_type == 'MSP':
+            stats['sub_organizations'] = Organization.objects.filter(
+                parent_organization=organization
+            ).count()
+        
+        return Response(stats)
     
     @action(detail=True, methods=['post'])
     def toggle_status(self, request, pk=None):

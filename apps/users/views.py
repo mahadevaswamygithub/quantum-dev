@@ -9,7 +9,10 @@ from .serializers import (
     UserRegistrationSerializer, 
     UserSerializer, 
     LoginSerializer,
-    UserUpdateSerializer
+    UserUpdateSerializer,
+    ForgotPasswordSerializer,
+    ResetPasswordSerializer,
+    ChangePasswordSerializer
 )
 from .models import User
 
@@ -102,14 +105,14 @@ class UserViewSet(viewsets.ModelViewSet):
         # MSP users can see their organization and sub-organization users
         elif user.role in ['MSP_ADMIN', 'MSP_USER']:
             sub_org_ids = user.organization.sub_organizations.values_list('id', flat=True)
-            return User.objects.filter(
+            return User.objects.exclude(role='GREEN_ADMIN').filter(
                 models.Q(organization=user.organization) |
                 models.Q(organization_id__in=sub_org_ids)
             )
         
         # STP users can only see their organization users
         else:
-            return User.objects.filter(organization=user.organization)
+            return User.objects.exclude(role='GREEN_ADMIN').filter(organization=user.organization)
     
     @action(detail=False, methods=['get'])
     def me(self, request):
@@ -175,3 +178,49 @@ class UserListView(generics.ListAPIView):
             )
         else:
             return User.objects.filter(organization=user.organization)
+        
+
+
+class ForgotPasswordView(generics.GenericAPIView):
+    serializer_class = ForgotPasswordSerializer
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            'message': 'Password reset link has been sent to your email.'
+        }, status=status.HTTP_200_OK)
+
+
+class ResetPasswordView(generics.GenericAPIView):
+    serializer_class = ResetPasswordSerializer
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            'message': 'Password has been reset successfully. You can now login with your new password.'
+        }, status=status.HTTP_200_OK)
+
+
+class ChangePasswordView(generics.GenericAPIView):
+    serializer_class = ChangePasswordSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = self.get_serializer(
+            data=request.data,
+            context={'request': request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return Response({
+            'message': 'Password changed successfully.'
+        }, status=status.HTTP_200_OK)

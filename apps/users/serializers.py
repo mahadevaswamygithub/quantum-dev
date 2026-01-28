@@ -1,8 +1,14 @@
 from rest_framework import serializers
+
+from apps.users.tasks import send_welcome_email
 from .models import User
 from apps.tenants.models import Organization, Domain
-from django.contrib.auth.hashers import make_password
-from .tasks import send_welcome_email
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.core.mail import send_mail
+from django.conf import settings
+
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
     tenant_type = serializers.ChoiceField(choices=['MSP', 'STP'])
@@ -89,3 +95,111 @@ class UserUpdateSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
+
+# =======================================================================
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    
+    def validate_email(self, value):
+        try:
+            user = User.objects.get(email=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("No user found with this email address.")
+        return value
+    
+    def save(self):
+        email = self.validated_data['email']
+        user = User.objects.get(email=email)
+        
+        # Generate token
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        
+        # Create reset link
+        reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
+        
+        # Send email
+        subject = 'Password Reset Request - CoreX Platform'
+        message = f"""
+                Hello {user.first_name},
+
+                You requested to reset your password for CoreX Platform.
+
+                Click the link below to reset your password:
+                {reset_link}
+
+                This link will expire in 24 hours.
+
+                If you didn't request this, please ignore this email.
+
+                Best regards,
+                CoreX Team
+                """
+            
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [email],
+            fail_silently=False,
+        )
+        
+        return user
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    uid = serializers.CharField()
+    token = serializers.CharField()
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        
+        # Validate uid and token
+        try:
+            uid = force_str(urlsafe_base64_decode(data['uid']))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            raise serializers.ValidationError("Invalid reset link.")
+        
+        if not default_token_generator.check_token(user, data['token']):
+            raise serializers.ValidationError("Reset link has expired or is invalid.")
+        
+        data['user'] = user
+        return data
+    
+    def save(self):
+        user = self.validated_data['user']
+        new_password = self.validated_data['new_password']
+        
+        user.set_password(new_password)
+        user.save()
+        
+        return user
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(write_only=True)
+    new_password = serializers.CharField(min_length=8, write_only=True)
+    confirm_password = serializers.CharField(min_length=8, write_only=True)
+    
+    def validate_old_password(self, value):
+        user = self.context['request'].user
+        if not user.check_password(value):
+            raise serializers.ValidationError("Old password is incorrect.")
+        return value
+    
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        return data
+    
+    def save(self):
+        user = self.context['request'].user
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
