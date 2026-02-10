@@ -89,16 +89,32 @@ export const greenAdminAPI = {
   getStats: () => api.get('/green-admin/stats/'),
 };
 
-// User APIs
+
+// User APIs - Complete CRUD
 export const userAPI = {
   getUsers: () => api.get('/users/list/'),
   getUserById: (id) => api.get(`/users/list/${id}/`),
+  createUser: (data) => api.post('/users/list/', data),
   updateUser: (id, data) => api.put(`/users/list/${id}/`, data),
   deleteUser: (id) => api.delete(`/users/list/${id}/`),
+  toggleUserStatus: (id) => api.post(`/users/list/${id}/toggle_active/`),
+  changeUserRole: (id, role) => api.put(`/users/list/${id}/change_role/`, { role }),
   getCurrentUser: () => api.get('/users/me/'),
+
+  // Bulk operations
+  bulkActivate: (user_ids) => api.post('/users/list/bulk_activate/', { user_ids }),
+  bulkDeactivate: (user_ids) => api.post('/users/list/bulk_deactivate/', { user_ids }),
+  bulkDelete: (user_ids) => api.post('/users/list/bulk_delete/', { user_ids }),
+  bulkChangeRole: (user_ids, role) => api.post('/users/list/bulk_change_role/', { user_ids, role }),
+  
+  // Export
+  exportCSV: () => api.get('/users/list/export_csv/', { responseType: 'blob' }),
+  exportJSON: () => api.get('/users/list/export_json/'),
+  getStatistics: () => api.get('/users/list/statistics/'),
 };
 
-// Tenant APIs
+
+// Tenant APIs - Complete CRUD
 export const tenantAPI = {
   getTenants: () => api.get('/tenants/organizations/'),
   getTenantById: (id) => api.get(`/tenants/organizations/${id}/`),
@@ -106,7 +122,17 @@ export const tenantAPI = {
   getTenantStats: (id) => api.get(`/tenants/organizations/${id}/stats/`),
   createTenant: (data) => api.post('/tenants/organizations/', data),
   updateTenant: (id, data) => api.put(`/tenants/organizations/${id}/`, data),
+  deleteTenant: (id) => api.delete(`/tenants/organizations/${id}/`),
   toggleTenantStatus: (id) => api.post(`/tenants/organizations/${id}/toggle_status/`),
+
+  // Bulk operations
+  bulkActivate: (org_ids) => api.post('/tenants/organizations/bulk_activate/', { org_ids }),
+  bulkDeactivate: (org_ids) => api.post('/tenants/organizations/bulk_deactivate/', { org_ids }),
+  
+  // Export
+  exportCSV: () => api.get('/tenants/organizations/export_csv/', { responseType: 'blob' }),
+  getStatistics: () => api.get('/tenants/organizations/statistics/'),
 };
+
 
 export default api;

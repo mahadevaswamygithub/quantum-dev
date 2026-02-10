@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
 from apps.users.tasks import send_welcome_email
@@ -81,15 +82,96 @@ class UserSerializer(serializers.ModelSerializer):
                   'organization_name', 'role', 'is_active', 'created_at']
         read_only_fields = ['id', 'created_at']
 
-
-class UserUpdateSerializer(serializers.ModelSerializer):
+class UserCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=8)
+    organization_id = serializers.IntegerField(required=True)
+    
     class Meta:
         model = User
-        fields = ['first_name', 'last_name', 'role']
+        fields = [
+            'username', 'email', 'first_name', 'last_name', 
+            'password', 'organization_id', 'role'
+        ]
     
-    def validate_role(self, value):
-        # Add custom role validation logic here
+    def validate_organization_id(self, value):
+        try:
+            organization = Organization.objects.get(id=value)
+            # Check if requesting user has permission to add users to this org
+            request_user = self.context['request'].user
+            
+            if request_user.role == 'GREEN_ADMIN':
+                return value
+            elif request_user.role in ['MSP_ADMIN', 'MSP_USER']:
+                # MSP can add users to their org or sub-orgs
+                if organization.id == request_user.organization.id or \
+                   organization.parent_organization == request_user.organization:
+                    return value
+            elif request_user.role in ['STP_ADMIN']:
+                # STP admin can only add to their org
+                if organization.id == request_user.organization.id:
+                    return value
+            
+            raise serializers.ValidationError(
+                "You don't have permission to add users to this organization"
+            )
+        except Organization.DoesNotExist:
+            raise serializers.ValidationError("Organization not found")
+    
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("User with this email already exists")
         return value
+    
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already taken")
+        return value
+    
+    def create(self, validated_data):
+        organization_id = validated_data.pop('organization_id')
+        password = validated_data.pop('password')
+        
+        organization = Organization.objects.get(id=organization_id)
+        
+        user = User.objects.create(
+            **validated_data,
+            password=make_password(password),
+            organization=organization
+        )
+        
+        return user
+
+
+class UserUpdateSerializer(serializers.ModelSerializer):
+    organization_id = serializers.IntegerField(required=False)
+    
+    class Meta:
+        model = User
+        fields = [
+            'first_name', 'last_name', 'email', 
+            'organization_id', 'role', 'is_active'
+        ]
+    
+    def validate_organization_id(self, value):
+        if value:
+            try:
+                Organization.objects.get(id=value)
+            except Organization.DoesNotExist:
+                raise serializers.ValidationError("Organization not found")
+        return value
+    
+    def update(self, instance, validated_data):
+        organization_id = validated_data.pop('organization_id', None)
+        
+        if organization_id:
+            organization = Organization.objects.get(id=organization_id)
+            instance.organization = organization
+        
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        
+        instance.save()
+        return instance
 
 
 class LoginSerializer(serializers.Serializer):
