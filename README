@@ -1,0 +1,10 @@
+celery -A corex worker -l info --pool=solo
+
+# Activate venv
+venv\Scripts\activate 
+
+#To Run Django Server
+python manage.py runserver
+
+# To Run React
+npm starts

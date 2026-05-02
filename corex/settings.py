@@ -49,6 +49,7 @@ SHARED_APPS = [
     'apps.tenants',
     'apps.users',
     'apps.green_admin',
+    'chat'
 ]
 
 TENANT_APPS = [
@@ -144,6 +145,7 @@ CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://127.0.0.1:8002",
     # "https://*.ngrok-free.dev"
 ]
 
@@ -234,3 +236,6 @@ LOGGING = {
         },
     },
 }
+
+
+LLM_ORCHESTRATOR_URL = "http://localhost:8002"

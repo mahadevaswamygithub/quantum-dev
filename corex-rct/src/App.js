@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PrivateRoute from './components/PrivateRoute';
+import ChatAssistant from './components/ChatAssistant'; 
 
 // Auth Pages
 import Login from './pages/Login';
@@ -130,11 +131,27 @@ const AppRoutes = () => {
   );
 };
 
+// Fixed: This component now correctly includes both routes and chat
+const AppWithChat = () => {
+  const { user } = useAuth();
+  return (
+    <>
+      <AppRoutes />
+      {user && (
+        <ChatAssistant
+          sessionId={`session_${user.id}`}
+          user={{ role: user.role }}
+        />
+      )}
+    </>
+  );
+};
+
 function App() {
   return (
     <AuthProvider>
       <Router>
-        <AppRoutes />
+        <AppWithChat /> {/* Only render this once */}
       </Router>
     </AuthProvider>
   );

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { v4 as uuidv4 } from 'uuid';
 
 // Get API URL from environment variables with fallback
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
@@ -132,6 +133,123 @@ export const tenantAPI = {
   // Export
   exportCSV: () => api.get('/tenants/organizations/export_csv/', { responseType: 'blob' }),
   getStatistics: () => api.get('/tenants/organizations/statistics/'),
+};
+
+
+// ── Chat / AI Assistant APIs ──────────────────────────────────────────────────
+export const chatAPI = {
+  async streamMessage(message, sessionId) {
+    // Ensure we have a valid UUID
+    const validSessionId = sessionId || uuidv4();
+    
+    // Use the same API_BASE_URL and token key (accessToken vs access_token)
+    const token = localStorage.getItem('accessToken');
+    
+    const response = await fetch(`${API_BASE_URL}/chat/stream/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
+      },
+      body: JSON.stringify({
+        message: message,
+        session_id: validSessionId
+      })
+    });
+    
+    return response;
+  },
+
+  async getHistory(sessionId) {
+    if (!sessionId) return { data: { messages: [] } };
+    
+    const token = localStorage.getItem('accessToken');
+    
+    const response = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/history/`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
+      }
+    });
+    
+    return response.json();
+  },
+
+  async clearSession(sessionId) {
+    if (!sessionId) return;
+    
+    const token = localStorage.getItem('accessToken');
+    
+    return fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'ngrok-skip-browser-warning': 'true',
+      }
+    });
+  },
+  
+  // Alternative: Using axios if you prefer (more consistent with other APIs)
+  async sendMessage(message, sessionId) {
+    const validSessionId = sessionId || uuidv4();
+    
+    try {
+      const response = await api.post('/chat/send/', {
+        message: message,
+        session_id: validSessionId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error sending message:', error);
+      throw error;
+    }
+  },
+  
+  // Using axios for streaming (more complex but possible)
+  async streamMessageAxios(message, sessionId, onEvent) {
+    const validSessionId = sessionId || uuidv4();
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/stream/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: JSON.stringify({
+          message: message,
+          session_id: validSessionId
+        })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const events = chunk.split('\n\n');
+        
+        for (const event of events) {
+          if (event.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(event.slice(6));
+              onEvent(data);
+            } catch (e) {
+              console.error('Error parsing event:', e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Stream error:', error);
+      throw error;
+    }
+  }
 };
 
 
