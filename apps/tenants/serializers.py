@@ -7,23 +7,28 @@ class DomainSerializer(serializers.ModelSerializer):
         model = Domain
         fields = ['domain', 'is_primary']
 
+
 class OrganizationSerializer(serializers.ModelSerializer):
     domains = DomainSerializer(many=True, read_only=True)
+    parent_name = serializers.SerializerMethodField()
     user_count = serializers.SerializerMethodField()
-    parent_name = serializers.CharField(source='parent_organization.name', read_only=True)
-    
+ 
     class Meta:
         model = Organization
         fields = [
-            'id', 'schema_name', 'name', 'tenant_type', 
-            'parent_organization', 'parent_name', 'is_active', 
-            'created_on', 'updated_on', 'domains', 'user_count'
+            'id', 'name', 'schema_name', 'tenant_type', 'is_active',
+            'parent_organization', 'parent_name', 'domains',
+            'user_count', 'created_on', 'updated_on',
         ]
-        read_only_fields = ['schema_name', 'created_on', 'updated_on']
-    
+        read_only_fields = ['id', 'schema_name', 'created_on', 'updated_on']
+ 
+    def get_parent_name(self, obj):
+        return obj.parent_organization.name if obj.parent_organization else None
+ 
     def get_user_count(self, obj):
         return User.objects.filter(organization=obj).count()
-
+ 
+ 
 class OrganizationDetailSerializer(serializers.ModelSerializer):
     domains = DomainSerializer(many=True, read_only=True)
     users = serializers.SerializerMethodField()

@@ -10,7 +10,7 @@ def send_welcome_email(email, username, password=None):
         message = f"""
         Hello,
         
-        Your Green Admin account has been created for CoreX Platform.
+        Your admin account has been created for CoreX Platform.
         
         Username: {username}
         Email: {email}

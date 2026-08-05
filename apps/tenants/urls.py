@@ -8,5 +8,3 @@ router.register(r'organizations', OrganizationViewSet, basename='organization')
 urlpatterns = [
     path('', include(router.urls)),
 ]
-
-print("✓ Tenant URLs loaded")

@@ -46,9 +46,9 @@ SHARED_APPS = [
     'corsheaders',
     'django.contrib.staticfiles',
 
+    'apps.core',
     'apps.tenants',
     'apps.users',
-    'apps.green_admin',
     'chat'
 ]
 

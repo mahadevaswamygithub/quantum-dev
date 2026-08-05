@@ -7,4 +7,4 @@ venv\Scripts\activate
 python manage.py runserver
 
 # To Run React
-npm starts
+npm start

@@ -1,5 +1,6 @@
 import csv
 from datetime import datetime
+import io
 from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -8,11 +9,12 @@ from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q, Count
 from .models import Organization, Domain
 from .serializers import (
-    OrganizationSerializer, 
+    OrganizationSerializer,
     OrganizationDetailSerializer,
     OrganizationCreateSerializer,
     OrganizationUpdateSerializer
 )
+from apps.core.permissions import get_visible_organization_ids
 from apps.users.models import User
 from apps.users.serializers import UserSerializer
 import logging
@@ -21,209 +23,89 @@ logger = logging.getLogger(__name__)
 
 class OrganizationViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
-    
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Organization.objects.order_by('-created_on')
+
+        if user.role in ('MSP_ADMIN', 'MSP_USER', 'STP_ADMIN', 'STP_USER'):
+            # MSP sees its sub-orgs only (not itself); STP sees its own org.
+            org_ids = get_visible_organization_ids(user, include_own_org=False)
+            return qs.filter(id__in=org_ids)
+        return qs.none()
+ 
     def get_serializer_class(self):
         if self.action == 'create':
             return OrganizationCreateSerializer
-        elif self.action in ['update', 'partial_update']:
-            return OrganizationUpdateSerializer
-        elif self.action == 'retrieve':
-            return OrganizationDetailSerializer
         return OrganizationSerializer
-    
-    def get_queryset(self):
-        user = self.request.user
-        
-        # Green Admin can see all organizations except public
-        if user.role == 'GREEN_ADMIN':
-            return Organization.objects.exclude(schema_name='public')
-        
-        # MSP users can see their organization and sub-organizations
-        elif user.role in ['MSP_ADMIN', 'MSP_USER']:
-            return Organization.objects.filter(
-                Q(id=user.organization.id) |
-                Q(parent_organization=user.organization)
-            )
-        
-        # STP users can only see their organization
-        else:
-            return Organization.objects.filter(id=user.organization.id)
-    
-    def create(self, request, *args, **kwargs):
-        logger.info(f"Creating organization: {request.data}")
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        organization = serializer.save()
-        
-        return Response({
-            'message': 'Organization created successfully',
-            'organization': OrganizationSerializer(organization).data
-        }, status=status.HTTP_201_CREATED)
-    
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        serializer.is_valid(raise_exception=True)
-        organization = serializer.save()
-        
-        return Response({
-            'message': 'Organization updated successfully',
-            'organization': OrganizationSerializer(organization).data
-        })
-    
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        
-        # Prevent deletion of organization if it has users
-        user_count = User.objects.filter(organization=instance).count()
-        if user_count > 0:
-            return Response({
-                'error': f'Cannot delete organization with {user_count} users. Please remove all users first.'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Prevent deletion if it's a parent organization with sub-orgs
-        if instance.tenant_type == 'MSP':
-            sub_org_count = Organization.objects.filter(parent_organization=instance).count()
-            if sub_org_count > 0:
-                return Response({
-                    'error': f'Cannot delete MSP with {sub_org_count} sub-organizations. Please remove all sub-organizations first.'
-                }, status=status.HTTP_400_BAD_REQUEST)
-        
-        instance.delete()
-        return Response({
-            'message': 'Organization deleted successfully'
-        }, status=status.HTTP_204_NO_CONTENT)
-    
-    @action(detail=True, methods=['get'])
+ 
+    def create(self, request):
+        serializer = OrganizationCreateSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            org = serializer.save()
+            return Response(OrganizationSerializer(org).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+ 
+    @action(detail=True, methods=['get'], url_path='users')
     def users(self, request, pk=None):
-        """Get all users for a specific organization"""
-        organization = self.get_object()
-        users = User.objects.filter(organization=organization)
-        serializer = UserSerializer(users, many=True)
-        return Response(serializer.data)
-    
-    @action(detail=True, methods=['get'])
+        org = self.get_object()
+        users = User.objects.filter(organization=org).order_by('-created_at')
+        return Response(UserSerializer(users, many=True, context={'request': request}).data)
+ 
+    @action(detail=True, methods=['get'], url_path='stats')
     def stats(self, request, pk=None):
-        """Get statistics for a specific organization"""
-        organization = self.get_object()
-        
-        users = User.objects.filter(organization=organization)
-        active_users = users.filter(is_active=True).count()
-        
-        stats = {
+        org = self.get_object()
+        users = User.objects.filter(organization=org)
+        return Response({
             'total_users': users.count(),
-            'active_users': active_users,
-            'inactive_users': users.count() - active_users,
+            'active_users': users.filter(is_active=True).count(),
+            'inactive_users': users.filter(is_active=False).count(),
             'admins': users.filter(role__contains='ADMIN').count(),
             'regular_users': users.exclude(role__contains='ADMIN').count(),
-        }
-        
-        # For MSP, include sub-organization count
-        if organization.tenant_type == 'MSP':
-            stats['sub_organizations'] = Organization.objects.filter(
-                parent_organization=organization
-            ).count()
-            stats['sub_organizations_active'] = Organization.objects.filter(
-                parent_organization=organization,
-                is_active=True
-            ).count()
-        
-        return Response(stats)
-    
-    @action(detail=True, methods=['post'])
+        })
+ 
+    @action(detail=True, methods=['post'], url_path='toggle_status')
     def toggle_status(self, request, pk=None):
-        """Activate or deactivate an organization"""
-        organization = self.get_object()
-        organization.is_active = not organization.is_active
-        organization.save()
-        
-        return Response({
-            'message': f'Organization {"activated" if organization.is_active else "deactivated"}',
-            'is_active': organization.is_active,
-            'organization': OrganizationSerializer(organization).data
-        })
-
-    @action(detail=False, methods=['post'])
+        org = self.get_object()
+        org.is_active = not org.is_active
+        org.save()
+        return Response({'is_active': org.is_active})
+ 
+    @action(detail=False, methods=['post'], url_path='bulk_activate')
     def bulk_activate(self, request):
-        """Activate multiple organizations"""
-        org_ids = request.data.get('org_ids', [])
-        
-        if not org_ids:
-            return Response({
-                'error': 'No organization IDs provided'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        orgs = Organization.objects.filter(id__in=org_ids)
-        updated_count = orgs.update(is_active=True)
-        
-        return Response({
-            'message': f'{updated_count} organizations activated successfully',
-            'updated_count': updated_count
-        })
-
-    @action(detail=False, methods=['post'])
+        ids = request.data.get('org_ids', [])
+        Organization.objects.filter(id__in=ids).update(is_active=True)
+        return Response({'message': f'{len(ids)} organizations activated'})
+ 
+    @action(detail=False, methods=['post'], url_path='bulk_deactivate')
     def bulk_deactivate(self, request):
-        """Deactivate multiple organizations"""
-        org_ids = request.data.get('org_ids', [])
-        
-        if not org_ids:
-            return Response({
-                'error': 'No organization IDs provided'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        orgs = Organization.objects.filter(id__in=org_ids)
-        updated_count = orgs.update(is_active=False)
-        
-        return Response({
-            'message': f'{updated_count} organizations deactivated successfully',
-            'updated_count': updated_count
-        })
-
-    @action(detail=False, methods=['get'])
+        ids = request.data.get('org_ids', [])
+        Organization.objects.filter(id__in=ids).update(is_active=False)
+        return Response({'message': f'{len(ids)} organizations deactivated'})
+ 
+    @action(detail=False, methods=['get'], url_path='export_csv')
     def export_csv(self, request):
-        """Export organizations to CSV"""
-        orgs = self.get_queryset()
-        
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename="organizations_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv"'
-        
-        writer = csv.writer(response)
-        writer.writerow(['ID', 'Name', 'Schema', 'Type', 'Parent', 'Active', 'Users', 'Created At'])
-        
-        for org in orgs:
+        qs = self.get_queryset()
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['ID', 'Name', 'Type', 'Schema', 'Active', 'Users', 'Created'])
+        for o in qs:
             writer.writerow([
-                org.id,
-                org.name,
-                org.schema_name,
-                org.tenant_type,
-                org.parent_organization.name if org.parent_organization else 'None',
-                'Yes' if org.is_active else 'No',
-                User.objects.filter(organization=org).count(),
-                org.created_on.strftime('%Y-%m-%d %H:%M:%S')
+                o.id, o.name, o.tenant_type, o.schema_name,
+                o.is_active, User.objects.filter(organization=o).count(),
+                o.created_on.strftime('%Y-%m-%d')
             ])
-        
+        response = HttpResponse(output.getvalue(), content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="organizations.csv"'
         return response
-
-    @action(detail=False, methods=['get'])
+ 
+    @action(detail=False, methods=['get'], url_path='statistics')
     def statistics(self, request):
-        """Get organization statistics"""
-        orgs = self.get_queryset()
-        
-        stats = {
-            'total_organizations': orgs.count(),
-            'active_organizations': orgs.filter(is_active=True).count(),
-            'inactive_organizations': orgs.filter(is_active=False).count(),
-            'msp_count': orgs.filter(tenant_type='MSP').count(),
-            'stp_count': orgs.filter(tenant_type='STP').count(),
-            'total_users': User.objects.filter(organization__in=orgs).count(),
-            'avg_users_per_org': 0,
-        }
-        
-        if stats['total_organizations'] > 0:
-            stats['avg_users_per_org'] = round(
-                stats['total_users'] / stats['total_organizations'], 2
-            )
-        
-        return Response(stats)
+        qs = self.get_queryset()
+        return Response({
+            'total': qs.count(),
+            'active': qs.filter(is_active=True).count(),
+            'inactive': qs.filter(is_active=False).count(),
+            'msp': qs.filter(tenant_type='MSP').count(),
+            'stp': qs.filter(tenant_type='STP').count(),
+        })
