@@ -8,7 +8,7 @@ import { userAPI, tenantAPI, attendanceAPI, salaryAPI, leaveAPI } from '../servi
 import {
   ArrowLeft, ChevronRight, User, Mail, Phone, Calendar, Shield, Building2,
   Clock, DollarSign, CalendarDays, Briefcase, Camera, Download, Plus,
-  CheckCircle, XCircle, Edit, FileText, TrendingUp, Wallet, AlertCircle
+  CheckCircle, XCircle, Edit, FileText, Wallet
 } from 'lucide-react';
 
 const TABS = [
@@ -553,7 +553,6 @@ const UserDetail = () => {
   const [loading, setLoading] = useState(true);
 
   const isMSP = currentUser.role === 'MSP_ADMIN' || currentUser.role === 'MSP_USER';
-  const isSTP = currentUser.role === 'STP_ADMIN' || currentUser.role === 'STP_USER';
   const basePath = isMSP ? '/msp' : '/stp';
 
   useEffect(() => {

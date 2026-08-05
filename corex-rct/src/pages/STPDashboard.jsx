@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import { useAuth } from '../context/AuthContext';
 import { userAPI } from '../services/api';
-import { Users, Activity, Settings, ArrowRight, Plus, UserPlus } from 'lucide-react';
+import { Users, Activity, Settings, ArrowRight, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const STPDashboard = () => {

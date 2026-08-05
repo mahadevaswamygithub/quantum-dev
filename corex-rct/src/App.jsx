@@ -27,7 +27,6 @@ import EmployeePortal from './pages/EmployeePortal';
 
 const MSP_ROLES = ['MSP_ADMIN', 'MSP_USER'];
 const STP_ROLES = ['STP_ADMIN', 'STP_USER'];
-const ADMIN_ROLES = ['MSP_ADMIN', 'MSP_USER', 'STP_ADMIN', 'STP_USER'];
 
 const AppRoutes = () => {
   const { user } = useAuth();

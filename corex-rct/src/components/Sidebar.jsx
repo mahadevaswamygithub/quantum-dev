@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import {
   Building2, Users, Home, Settings, ChevronDown, ChevronRight,
   Plus, UserCircle, BarChart3, ChevronLeft, ChevronRightIcon,
-  X, Menu, Briefcase, DollarSign, Clock, CalendarDays,
-  Shield, LogOut, Bell
+  Briefcase, DollarSign, Clock, CalendarDays,
+  Shield
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 

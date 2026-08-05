@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, X, Users, Trash2, Shield } from 'lucide-react';
+import { Check, X, Trash2, Shield } from 'lucide-react';
 
 const BulkActions = ({ 
   selectedCount, 

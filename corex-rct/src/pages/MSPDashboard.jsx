@@ -4,7 +4,7 @@ import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI } from '../services/api';
-import { Building2, Users, TrendingUp, Plus, Activity, ArrowRight } from 'lucide-react';
+import { Building2, Users, TrendingUp, Plus, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AddOrganizationModal } from '../components/OrganizationModals';
 

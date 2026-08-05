@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -6,7 +6,7 @@ import PageSpinner from '../components/common/PageSpinner';
 import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI } from '../services/api';
 import {
-  Building2, Users, ArrowLeft, Mail, Calendar, CheckCircle, XCircle,
+  Building2, Users, ArrowLeft, Calendar, CheckCircle,
   Shield, UserCircle, Plus, Edit, Trash2, ToggleLeft, ToggleRight,
   Eye, ChevronRight
 } from 'lucide-react';
@@ -33,9 +33,7 @@ const OrganizationDetail = () => {
 
   const basePath = '/msp';
 
-  useEffect(() => { fetchData(); }, [id]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const [orgRes, usersRes, statsRes, allOrgsRes, allUsersRes] = await Promise.all([
         tenantAPI.getTenantById(id),
@@ -51,7 +49,9 @@ const OrganizationDetail = () => {
       setAllUsers(allUsersRes.data || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
-  };
+  }, [id]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const handleToggleUser = async (userId) => {
     try { await userAPI.toggleUserStatus(userId); await fetchData(); }

@@ -33,8 +33,6 @@ const UsersList = () => {
   const [selectedUser, setSelectedUser] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
-
   const fetchData = useCallback(async () => {
     try {
       const [usersResponse, tenantsResponse] = await Promise.all([

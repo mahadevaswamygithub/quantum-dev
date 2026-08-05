@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
@@ -7,9 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { userAPI, attendanceAPI, salaryAPI, leaveAPI } from '../services/api';
 import {
   User, Clock, DollarSign, CalendarDays, Briefcase,
-  Camera, Download, Plus, ChevronRight, CheckCircle,
-  XCircle, Calendar, Mail, Phone, Building2, Shield,
-  Wallet, FileText, Edit, TrendingUp, AlertCircle
+  Download, Plus, Calendar, Mail, Phone, Building2, Shield,
+  Wallet, FileText
 } from 'lucide-react';
 
 const TABS = [
@@ -197,7 +195,7 @@ const MyAttendance = ({ userId }) => {
 // ── Employee Salary ───────────────────────────────────────────────────────────
 const MySalary = ({ userId }) => {
   const [records, setRecords] = useState([]);
-  const [advances, setAdvances] = useState([]);
+  const [, setAdvances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAdvance, setShowAdvance] = useState(false);
   const [form, setForm] = useState({ amount: '', note: '' });
@@ -305,14 +303,14 @@ const MyLeaves = ({ userId }) => {
   const [showApply, setShowApply] = useState(false);
   const [form, setForm] = useState({ leave_type: 'CASUAL', from_date: '', to_date: '', reason: '' });
 
-  const fetchLeaves = async () => {
+  const fetchLeaves = useCallback(async () => {
     setLoading(true);
     try { const res = await leaveAPI.getUserLeaves(userId); setLeaves(res.data || []); }
     catch { setLeaves([]); }
     finally { setLoading(false); }
-  };
+  }, [userId]);
 
-  useEffect(() => { fetchLeaves(); }, [userId]);
+  useEffect(() => { fetchLeaves(); }, [fetchLeaves]);
 
   const handleApply = async () => {
     try { await leaveAPI.applyLeave(userId, form); setShowApply(false); await fetchLeaves(); }
@@ -495,7 +493,7 @@ const EmployeePortal = () => {
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [user.id]);
 
   if (loading) return <PageSpinner />;
 
