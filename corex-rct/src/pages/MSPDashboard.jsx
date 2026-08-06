@@ -46,7 +46,7 @@ const MSPDashboard = () => {
   if (loading) return <PageSpinner label="Loading..." />;
 
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <Navbar />
       <div className="flex">
         <Sidebar
@@ -61,8 +61,8 @@ const MSPDashboard = () => {
         <div className="flex-1 p-6 overflow-auto">
           {/* Header */}
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-white">MSP Dashboard</h1>
-            <p className="text-slate-400 text-sm mt-1">Welcome back, {user.first_name}!</p>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">MSP Dashboard</h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Welcome back, {user.first_name}!</p>
           </div>
 
           {/* Stats */}
@@ -70,15 +70,15 @@ const MSPDashboard = () => {
             {stats.map((s, i) => {
               const Icon = s.icon;
               return (
-                <div key={i} className="bg-slate-800 border border-slate-700 rounded-xl p-5 hover:border-slate-600 transition-all">
+                <div key={i} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:border-slate-300 dark:hover:border-slate-600 transition-all">
                   <div className="flex items-center justify-between mb-3">
                     <div className={`w-10 h-10 ${s.bg} rounded-lg flex items-center justify-center`}>
                       <Icon className="w-5 h-5 text-white" />
                     </div>
-                    <span className="text-xs text-slate-500">{s.sub}</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-500">{s.sub}</span>
                   </div>
-                  <p className="text-2xl font-bold text-white">{s.value}</p>
-                  <p className="text-sm text-slate-400 mt-0.5">{s.title}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{s.value}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{s.title}</p>
                 </div>
               );
             })}
@@ -86,10 +86,10 @@ const MSPDashboard = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {/* Recent Organizations */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-              <div className="p-5 border-b border-slate-700 flex items-center justify-between">
-                <h2 className="font-semibold text-white">Recent Organizations</h2>
-                <button onClick={() => navigate('/msp/organizations')} className="text-xs text-green-400 hover:text-green-300 flex items-center gap-1">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900 dark:text-white">Recent Organizations</h2>
+                <button onClick={() => navigate('/msp/organizations')} className="text-xs text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 flex items-center gap-1">
                   View All <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
@@ -98,26 +98,26 @@ const MSPDashboard = () => {
                   <div
                     key={org.id}
                     onClick={() => navigate(`/msp/organizations/${org.id}`)}
-                    className="flex items-center justify-between p-3 hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all group"
+                    className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all group"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-purple-500/20 text-purple-400 rounded-lg flex items-center justify-center">
+                      <div className="w-8 h-8 bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center">
                         <Building2 className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-white text-sm font-medium group-hover:text-green-400 transition-colors">{org.name}</p>
-                        <p className="text-xs text-slate-500">{org.user_count || 0} users</p>
+                        <p className="text-slate-900 dark:text-white text-sm font-medium group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">{org.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-500">{org.user_count || 0} users</p>
                       </div>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${org.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${org.is_active ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}>
                       {org.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                 ))}
                 {organizations.length === 0 && (
                   <div className="text-center py-8">
-                    <Building2 className="w-10 h-10 text-slate-600 mx-auto mb-2" />
-                    <p className="text-slate-400 text-sm mb-3">No organizations yet</p>
+                    <Building2 className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-3">No organizations yet</p>
                     <button onClick={() => setShowAddModal(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-all">
                       <Plus className="w-3.5 h-3.5" /> Add Organization
                     </button>
@@ -127,10 +127,10 @@ const MSPDashboard = () => {
             </div>
 
             {/* Recent Users */}
-            <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-              <div className="p-5 border-b border-slate-700 flex items-center justify-between">
-                <h2 className="font-semibold text-white">Recent Users</h2>
-                <button onClick={() => navigate('/msp/users')} className="text-xs text-green-400 hover:text-green-300 flex items-center gap-1">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                <h2 className="font-semibold text-slate-900 dark:text-white">Recent Users</h2>
+                <button onClick={() => navigate('/msp/users')} className="text-xs text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 flex items-center gap-1">
                   View All <ArrowRight className="w-3 h-3" />
                 </button>
               </div>
@@ -139,16 +139,16 @@ const MSPDashboard = () => {
                   <div
                     key={u.id}
                     onClick={() => navigate(`/msp/users/${u.id}`)}
-                    className="flex items-center gap-3 p-3 hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all group"
+                    className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all group"
                   >
-                    <div className="w-8 h-8 bg-blue-500/20 text-blue-400 rounded-full flex items-center justify-center text-xs font-bold">
+                    <div className="w-8 h-8 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-bold">
                       {u.first_name?.[0]}{u.last_name?.[0]}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium group-hover:text-green-400 transition-colors truncate">{u.first_name} {u.last_name}</p>
-                      <p className="text-xs text-slate-500 truncate">{u.organization_name || 'No org'}</p>
+                      <p className="text-slate-900 dark:text-white text-sm font-medium group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors truncate">{u.first_name} {u.last_name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-500 truncate">{u.organization_name || 'No org'}</p>
                     </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0 ${u.is_active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0 ${u.is_active ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}>
                       {u.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>

@@ -44,7 +44,7 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-3 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-lg text-white transition-colors"
+        className="flex items-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 border border-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 rounded-lg text-slate-700 dark:text-white transition-colors"
       >
         <Filter className="w-5 h-5" />
         <span>Advanced Filters</span>
@@ -63,12 +63,12 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
             onClick={() => setIsOpen(false)}
           ></div>
           
-          <div className="absolute right-0 mt-2 w-96 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 p-6">
+          <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-white">Advanced Filters</h3>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Advanced Filters</h3>
               <button
                 onClick={() => setIsOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-900 dark:hover:text-white"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -77,13 +77,13 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
             <div className="space-y-4">
               {filterOptions.showRole && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                     Role
                   </label>
                   <select
                     value={filters.role}
                     onChange={(e) => handleChange('role', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="ALL">All Roles</option>
                     <option value="MSP_ADMIN">MSP Admin</option>
@@ -95,13 +95,13 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                   Status
                 </label>
                 <select
                   value={filters.status}
                   onChange={(e) => handleChange('status', e.target.value)}
-                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                 >
                   <option value="ALL">All Status</option>
                   <option value="ACTIVE">Active Only</option>
@@ -111,13 +111,13 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
 
               {filterOptions.organizations && (
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                  <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                     Organization
                   </label>
                   <select
                     value={filters.organization}
                     onChange={(e) => handleChange('organization', e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <option value="ALL">All Organizations</option>
                     {filterOptions.organizations.map(org => (
@@ -128,7 +128,7 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                   Created Date Range
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -136,13 +136,13 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
                     type="date"
                     value={filters.dateFrom}
                     onChange={(e) => handleChange('dateFrom', e.target.value)}
-                    className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                   <input
                     type="date"
                     value={filters.dateTo}
                     onChange={(e) => handleChange('dateTo', e.target.value)}
-                    className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
                   />
                 </div>
               </div>
@@ -151,7 +151,7 @@ const AdvancedFilters = ({ onApplyFilters, onClearFilters, filterOptions }) => {
             <div className="flex gap-2 mt-6">
               <button
                 onClick={handleClear}
-                className="flex-1 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition-colors"
+                className="flex-1 px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white rounded-lg transition-colors"
               >
                 Clear All
               </button>

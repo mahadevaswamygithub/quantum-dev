@@ -163,7 +163,7 @@ const Settings = () => {
 
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-900">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <Navbar />
 
       <div className="flex">
@@ -176,7 +176,7 @@ const Settings = () => {
         />
 
         <div className="flex-1 p-6">
-          <h1 className="text-2xl text-white font-bold mb-6">Settings</h1>
+          <h1 className="text-2xl text-slate-900 dark:text-white font-bold mb-6">Settings</h1>
 
           {/* Tabs */}
           <div className="flex gap-3 mb-6">
@@ -187,7 +187,7 @@ const Settings = () => {
                 className={`px-4 py-2 rounded-lg text-sm ${
                   activeTab === tab.id
                     ? 'bg-green-500 text-white'
-                    : 'bg-slate-700 text-slate-300'
+                    : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                 }`}
               >
                 {tab.label}
@@ -197,9 +197,9 @@ const Settings = () => {
 
           {/* ── GENERAL ───────────────── */}
           {activeTab === 'general' && (
-            <div className="bg-slate-800 p-6 rounded-xl">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-xl">
               <div className="flex justify-between mb-4">
-                <h2 className="text-white font-semibold">General Settings</h2>
+                <h2 className="text-slate-900 dark:text-white font-semibold">General Settings</h2>
                 <SaveBtn onClick={handleSaveGeneral} />
               </div>
 
@@ -208,7 +208,7 @@ const Settings = () => {
                 onChange={e =>
                   setGeneralSettings(s => ({ ...s, org_name: e.target.value }))
                 }
-                className="w-full p-2 rounded bg-slate-700 text-white"
+                className="w-full p-2 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                 placeholder="Organization Name"
               />
             </div>
@@ -216,9 +216,9 @@ const Settings = () => {
 
           {/* ── SALARY ───────────────── */}
           {activeTab === 'salary' && (
-            <div className="bg-slate-800 p-6 rounded-xl">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-xl">
               <div className="flex justify-between mb-4">
-                <h2 className="text-white font-semibold">Salary Settings</h2>
+                <h2 className="text-slate-900 dark:text-white font-semibold">Salary Settings</h2>
                 <SaveBtn onClick={handleSaveSalary} />
               </div>
 
@@ -228,7 +228,7 @@ const Settings = () => {
                 onChange={e =>
                   setSalarySettings(s => ({ ...s, daily_rate: e.target.value }))
                 }
-                className="w-full p-2 rounded bg-slate-700 text-white"
+                className="w-full p-2 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
                 placeholder="Daily Rate"
               />
             </div>
@@ -236,16 +236,16 @@ const Settings = () => {
 
           {/* ── SECURITY ───────────────── */}
           {activeTab === 'security' && (
-            <form onSubmit={handleChangePassword} className="bg-slate-800 p-6 rounded-xl space-y-3">
-              {pwError && <p className="text-red-400">{pwError}</p>}
-              {pwSuccess && <p className="text-green-400">{pwSuccess}</p>}
+            <form onSubmit={handleChangePassword} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-xl space-y-3">
+              {pwError && <p className="text-red-600 dark:text-red-400">{pwError}</p>}
+              {pwSuccess && <p className="text-green-600 dark:text-green-400">{pwSuccess}</p>}
 
               <input
                 type="password"
                 placeholder="Old Password"
                 value={passwordForm.old_password}
                 onChange={e => setPasswordForm(p => ({ ...p, old_password: e.target.value }))}
-                className="w-full p-2 rounded bg-slate-700 text-white"
+                className="w-full p-2 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
               />
 
               <input
@@ -253,7 +253,7 @@ const Settings = () => {
                 placeholder="New Password"
                 value={passwordForm.new_password}
                 onChange={e => setPasswordForm(p => ({ ...p, new_password: e.target.value }))}
-                className="w-full p-2 rounded bg-slate-700 text-white"
+                className="w-full p-2 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
               />
 
               <button className="bg-green-500 px-4 py-2 rounded text-white">

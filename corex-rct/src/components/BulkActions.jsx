@@ -14,17 +14,17 @@ const BulkActions = ({
 
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-40">
-      <div className="bg-slate-800 border-2 border-green-500 rounded-xl shadow-2xl p-4 flex items-center gap-4">
+      <div className="bg-white dark:bg-slate-800 border-2 border-green-500 rounded-xl shadow-2xl p-4 flex items-center gap-4">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
             <Check className="w-5 h-5 text-white" />
           </div>
-          <span className="text-white font-semibold">
+          <span className="text-slate-900 dark:text-white font-semibold">
             {selectedCount} selected
           </span>
         </div>
 
-        <div className="h-8 w-px bg-slate-600"></div>
+        <div className="h-8 w-px bg-slate-200 dark:bg-slate-600"></div>
 
         <div className="flex items-center gap-2">
           <button
@@ -63,7 +63,7 @@ const BulkActions = ({
 
           <button
             onClick={onClearSelection}
-            className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors"
+            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-white rounded-lg transition-colors"
           >
             Clear
           </button>

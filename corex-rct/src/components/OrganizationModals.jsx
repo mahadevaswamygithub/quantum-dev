@@ -30,32 +30,32 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={parentOrgId ? 'Add Sub-Organization' : 'Add Organization'}>
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
-        {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>}
+        {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm">{error}</div>}
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">Organization Name *</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Organization Name *</label>
           <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
-            className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="Acme Corporation" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">Domain Name *</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Domain Name *</label>
           <input type="text" value={form.domain_name} onChange={e => setForm(f => ({ ...f, domain_name: e.target.value }))} required
-            className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="acme.corex.local" />
           <p className="mt-1 text-xs text-slate-500">Used as subdomain for the organization</p>
         </div>
         {!parentOrgId && (
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1.5">Organization Type *</label>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Organization Type *</label>
             <select value={form.tenant_type} onChange={e => setForm(f => ({ ...f, tenant_type: e.target.value }))}
-              className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
               <option value="STP">Single Tenant Portal (STP)</option>
               <option value="MSP">Multi-Service Provider (MSP)</option>
             </select>
           </div>
         )}
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-all">Cancel</button>
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white text-sm font-medium rounded-lg transition-all">Cancel</button>
           <button type="submit" disabled={loading} className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
             {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating...</> : 'Create Organization'}
           </button>
@@ -91,19 +91,19 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Organization">
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
-        {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>}
+        {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm">{error}</div>}
         <div>
-          <label className="block text-xs font-medium text-slate-400 mb-1.5">Organization Name</label>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Organization Name</label>
           <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
-            className="w-full px-3 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
+            className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
-            className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-green-500 focus:ring-2 focus:ring-green-500" />
-          <span className="text-sm text-slate-300">Active Organization</span>
+            className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-green-500 focus:ring-2 focus:ring-green-500" />
+          <span className="text-sm text-slate-600 dark:text-slate-300">Active Organization</span>
         </label>
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-all">Cancel</button>
+          <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white text-sm font-medium rounded-lg transition-all">Cancel</button>
           <button type="submit" disabled={loading} className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
             {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Updating...</> : 'Update'}
           </button>
@@ -118,10 +118,10 @@ export const DeleteOrganizationModal = ({ isOpen, onClose, onConfirm, organizati
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Delete Organization">
       <div className="p-5">
-        <p className="text-slate-300 text-sm mb-1">Are you sure you want to delete <strong className="text-white">{organization.name}</strong>?</p>
-        <p className="text-xs text-slate-500 mb-5">This action cannot be undone. All associated data will be permanently deleted.</p>
+        <p className="text-slate-600 dark:text-slate-300 text-sm mb-1">Are you sure you want to delete <strong className="text-slate-900 dark:text-white">{organization.name}</strong>?</p>
+        <p className="text-xs text-slate-500 dark:text-slate-500 mb-5">This action cannot be undone. All associated data will be permanently deleted.</p>
         <div className="flex gap-3">
-          <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50">Cancel</button>
+          <button onClick={onClose} disabled={loading} className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50">Cancel</button>
           <button onClick={onConfirm} disabled={loading} className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
             {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Deleting...</> : 'Delete'}
           </button>

@@ -34,12 +34,12 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-slate-800 rounded-2xl shadow-xl max-w-md w-full border border-slate-700">
-        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-white">Forgot Password</h3>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full border border-slate-200 dark:border-slate-700">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Forgot Password</h3>
           <button
             onClick={handleClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -49,9 +49,9 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
           {success ? (
             <div className="text-center">
               <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-              <h4 className="text-lg font-semibold text-white mb-2">Email Sent!</h4>
-              <p className="text-slate-400 mb-6">
-                We've sent a password reset link to <strong className="text-white">{email}</strong>.
+              <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">Email Sent!</h4>
+              <p className="text-slate-500 dark:text-slate-400 mb-6">
+                We've sent a password reset link to <strong className="text-slate-900 dark:text-white">{email}</strong>.
                 Please check your inbox.
               </p>
               <button
@@ -63,18 +63,18 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              <p className="text-slate-400 mb-6">
+              <p className="text-slate-500 dark:text-slate-400 mb-6">
                 Enter your email address and we'll send you a link to reset your password.
               </p>
 
               {error && (
-                <div className="mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400 text-sm">
+                <div className="mb-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-600 dark:text-red-400 text-sm">
                   {error}
                 </div>
               )}
 
               <div className="mb-6">
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
                   Email Address
                 </label>
                 <div className="relative">
@@ -83,7 +83,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="w-full pl-11 pr-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
                     placeholder="you@example.com"
                     required
                   />
@@ -94,7 +94,7 @@ const ForgotPasswordModal = ({ isOpen, onClose }) => {
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="flex-1 py-3 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg transition-colors"
+                  className="flex-1 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white font-semibold rounded-lg transition-colors"
                 >
                   Cancel
                 </button>

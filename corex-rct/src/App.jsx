@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import PrivateRoute from './components/PrivateRoute';
 import ChatAssistant from './components/ChatAssistant';
 
@@ -93,11 +94,13 @@ const AppWithChat = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
-        <AppWithChat />
-      </Router>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
+          <AppWithChat />
+        </Router>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 
