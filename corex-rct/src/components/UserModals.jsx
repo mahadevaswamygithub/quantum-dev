@@ -29,14 +29,20 @@ export const ROLE_OPTIONS = {
   ],
 };
 
-/** tenant_type of whichever org is currently targeted — looks it up in the
- * org list when selectable, else falls back to the modal's default org. */
-const targetOrgType = (orgId, organizations, fallbackType) =>
-  organizations.find(o => String(o.id) === String(orgId))?.tenant_type || fallbackType;
+/** The org type a given role can target — MSP_* roles only make sense in an
+ * MSP org, everything else (STP_*, EMPLOYEE) only in an STP org. Mirrors
+ * the backend's _check_role_matches_org_type (apps/users/serializers/users.py). */
+const roleOrgType = (role) => (role && role.startsWith('MSP_')) ? 'MSP' : 'STP';
+
+/** Which roles this modal offers at all, based on who's opening it — an MSP
+ * admin manages both their own MSP teammates and their STP sub-orgs' staff,
+ * an STP admin only ever manages their own STP-side roles. */
+const roleOptionsFor = (currentOrgType) =>
+  currentOrgType === 'MSP' ? [...ROLE_OPTIONS.MSP, ...ROLE_OPTIONS.STP] : ROLE_OPTIONS.STP;
 
 export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], currentOrgId, currentOrgType = 'STP' }) => {
   const emptyForm = () => {
-    const roleOptions = ROLE_OPTIONS[currentOrgType] || ROLE_OPTIONS.STP;
+    const roleOptions = roleOptionsFor(currentOrgType);
     return { username: '', email: '', first_name: '', last_name: '', role: roleOptions[0].value, organization_id: currentOrgId || '' };
   };
   const [form, setForm] = useState(emptyForm);
@@ -48,8 +54,12 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, currentOrgId, currentOrgType]);
 
-  const orgType = targetOrgType(form.organization_id, organizations, currentOrgType);
-  const roleOptions = ROLE_OPTIONS[orgType] || ROLE_OPTIONS.STP;
+  const roleOptions = roleOptionsFor(currentOrgType);
+  // Organization choices are scoped to whatever org type the *selected role*
+  // implies (not the other way around) — an MSP role can only ever target
+  // an MSP organization, so an STP sub-org never even shows up as a pickable
+  // option once "MSP Admin"/"MSP User" is the selected role.
+  const orgOptions = organizations.filter(o => o.tenant_type === roleOrgType(form.role));
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
@@ -64,14 +74,19 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const handleOrgChange = (e) => {
-    const newOrgId = e.target.value;
-    const newRoleOptions = ROLE_OPTIONS[targetOrgType(newOrgId, organizations, currentOrgType)] || ROLE_OPTIONS.STP;
-    setForm(f => ({
-      ...f,
-      organization_id: newOrgId,
-      role: newRoleOptions.some(r => r.value === f.role) ? f.role : newRoleOptions[0].value,
-    }));
+  const handleRoleChange = (e) => {
+    const newRole = e.target.value;
+    const newOrgType = roleOrgType(newRole);
+    setForm(f => {
+      const currentOrgStillValid = organizations.some(o => String(o.id) === String(f.organization_id) && o.tenant_type === newOrgType);
+      return {
+        ...f,
+        role: newRole,
+        organization_id: currentOrgStillValid
+          ? f.organization_id
+          : (organizations.find(o => o.tenant_type === newOrgType)?.id ?? ''),
+      };
+    });
   };
 
   return (
@@ -85,16 +100,16 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
           <Field label="First Name" required><input type="text" value={form.first_name} onChange={set('first_name')} required placeholder="John" className={inputCls} /></Field>
           <Field label="Last Name" required><input type="text" value={form.last_name} onChange={set('last_name')} required placeholder="Doe" className={inputCls} /></Field>
           <Field label="Role" required>
-            <select value={form.role} onChange={set('role')} className={inputCls}>
+            <select value={form.role} onChange={handleRoleChange} className={inputCls}>
               {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </Field>
           {organizations.length > 0 && (
             <div className="md:col-span-2">
               <Field label="Organization" required>
-                <select value={form.organization_id} onChange={handleOrgChange} required className={inputCls}>
+                <select value={form.organization_id} onChange={set('organization_id')} required className={inputCls}>
                   <option value="">Select Organization</option>
-                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name} ({o.tenant_type})</option>)}
+                  {orgOptions.map(o => <option key={o.id} value={o.id}>{o.name} ({o.tenant_type})</option>)}
                 </select>
               </Field>
             </div>
@@ -125,8 +140,8 @@ export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations 
 
   if (!isOpen || !user) return null;
 
-  const orgType = targetOrgType(form.organization_id, organizations, currentOrgType);
-  const roleOptions = ROLE_OPTIONS[orgType] || ROLE_OPTIONS.STP;
+  const roleOptions = roleOptionsFor(currentOrgType);
+  const orgOptions = organizations.filter(o => o.tenant_type === roleOrgType(form.role));
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
@@ -143,14 +158,19 @@ export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations 
     setForm(f => ({ ...f, [k]: v }));
   };
 
-  const handleOrgChange = (e) => {
-    const newOrgId = e.target.value;
-    const newRoleOptions = ROLE_OPTIONS[targetOrgType(newOrgId, organizations, currentOrgType)] || ROLE_OPTIONS.STP;
-    setForm(f => ({
-      ...f,
-      organization_id: newOrgId,
-      role: newRoleOptions.some(r => r.value === f.role) ? f.role : newRoleOptions[0].value,
-    }));
+  const handleRoleChange = (e) => {
+    const newRole = e.target.value;
+    const newOrgType = roleOrgType(newRole);
+    setForm(f => {
+      const currentOrgStillValid = organizations.some(o => String(o.id) === String(f.organization_id) && o.tenant_type === newOrgType);
+      return {
+        ...f,
+        role: newRole,
+        organization_id: currentOrgStillValid
+          ? f.organization_id
+          : (organizations.find(o => o.tenant_type === newOrgType)?.id ?? ''),
+      };
+    });
   };
 
   return (
@@ -162,16 +182,16 @@ export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations 
           <Field label="Last Name" required><input type="text" value={form.last_name} onChange={set('last_name')} required className={inputCls} /></Field>
           <Field label="Email" required><input type="email" value={form.email} onChange={set('email')} required className={inputCls} /></Field>
           <Field label="Role" required>
-            <select value={form.role} onChange={set('role')} className={inputCls}>
+            <select value={form.role} onChange={handleRoleChange} className={inputCls}>
               {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </Field>
           {organizations.length > 0 && (
             <div className="md:col-span-2">
               <Field label="Organization">
-                <select value={form.organization_id} onChange={handleOrgChange} className={inputCls}>
+                <select value={form.organization_id} onChange={set('organization_id')} className={inputCls}>
                   <option value="">No Organization</option>
-                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name} ({o.tenant_type})</option>)}
+                  {orgOptions.map(o => <option key={o.id} value={o.id}>{o.name} ({o.tenant_type})</option>)}
                 </select>
               </Field>
             </div>

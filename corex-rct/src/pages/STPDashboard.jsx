@@ -30,12 +30,12 @@ const STPDashboard = () => {
   if (loading) return <PageSpinner />;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} users={users} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">STP Dashboard</h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Welcome to {user.organization_name || 'your organization'}</p>

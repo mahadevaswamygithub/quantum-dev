@@ -1,15 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import Pagination from '../components/common/Pagination';
+import SearchFilterBar from '../components/common/SearchFilterBar';
+import Button from '../components/common/Button';
+import Modal from '../components/common/Modal';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, tenantAPI } from '../services/api';
-import { 
-  Search, UserPlus, Edit, Trash2, ToggleLeft, ToggleRight,
+import {
+  Users, UserPlus, Edit, Trash2, ToggleLeft, ToggleRight,
   Download, FileText, Shield
 } from 'lucide-react';
 import { AddUserModal, EditUserModal, DeleteUserModal, ROLE_OPTIONS } from '../components/UserModals';
 import BulkActions from '../components/BulkActions';
 import AdvancedFilters from '../components/AdvancedFilters';
+import Avatar from '../components/common/Avatar';
+
+const PAGE_SIZE = 15;
 
 const UsersList = () => {
   const { user } = useAuth();
@@ -24,6 +31,7 @@ const UsersList = () => {
   
   // Filter states
   const [advancedFilters, setAdvancedFilters] = useState(null);
+  const [page, setPage] = useState(1);
   
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -52,7 +60,28 @@ const UsersList = () => {
     fetchData();
   }, [fetchData]);
 
-  const filteredUsers = users.filter((u) => {
+  const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
+
+  // userAPI.getUsers() intentionally returns MSP staff + every managed
+  // sub-org's staff flattened together (UserViewSet.get_queryset — needed
+  // for bulk ops/exports/stats elsewhere). This page is "manage MY
+  // organization's people" though, so it defaults to just that org — a
+  // sub-org's staff is managed from that org's own detail page instead
+  // (Organizations → org → View Users).
+  const ownOrgUsers = isMSP
+    ? users.filter(u => u.organization_id === user.organization_id)
+    : users;
+
+  // tenantAPI.getTenants() deliberately excludes the MSP's own org (it
+  // backs the Organizations page, which lists *sub*-orgs only — see
+  // OrganizationViewSet.get_queryset). The Add/Edit User modals need the
+  // MSP's own org as a pickable target too, so it's synthesized here from
+  // the logged-in user's own profile fields and prepended.
+  const orgOptionsForModals = isMSP
+    ? [{ id: user.organization_id, name: user.organization_name, tenant_type: 'MSP', is_active: true }, ...tenants]
+    : tenants;
+
+  const filteredUsers = ownOrgUsers.filter((u) => {
     const matchesSearch = 
       u.first_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.last_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -72,6 +101,14 @@ const UsersList = () => {
 
     return true;
   });
+
+  // Filters reshuffle the result set — back to page 1 so pagination doesn't
+  // land on an out-of-range/empty page.
+  useEffect(() => { setPage(1); }, [searchTerm, advancedFilters]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageUsers = filteredUsers.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   // Selection handlers
   const handleSelectAll = (e) => {
@@ -227,84 +264,63 @@ const UsersList = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
 
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar
           userRole={user.role}
           tenants={tenants}
-          users={users}
+          users={ownOrgUsers}
         />
 
-        <div className="flex-1 p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Users Management</h1>
-            <p className="text-slate-500 dark:text-slate-400">Manage all users in your organization</p>
-          </div>
-
-          {/* Search, Filters and Actions */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 mb-6">
-            <div className="flex flex-col gap-4">
-              {/* Search and Advanced Filters */}
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-11 pr-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                    placeholder="Search users..."
-                  />
-                </div>
-
-                <AdvancedFilters
-                  onApplyFilters={setAdvancedFilters}
-                  onClearFilters={() => setAdvancedFilters(null)}
-                  filterOptions={{
-                    showRole: true,
-                    organizations: tenants
-                  }}
-                />
-
-                <button
-                  onClick={() => setShowAddModal(true)}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all whitespace-nowrap"
-                >
-                  <UserPlus className="w-5 h-5" />
-                  Add User
-                </button>
+        <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
+          {/* Static header + toolbar — only the table below scrolls.
+              Same structure/sizing as every other listing page (Organizations,
+              Rooms, Properties, Activity Log): title+icon+description on the
+              left, primary Add action on the right, search/filters below. */}
+          <div className="flex-shrink-0">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Users className="w-6 h-6 text-green-500" /> Users Management
+                </h1>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Manage all users in your organization</p>
               </div>
+              <Button icon={UserPlus} onClick={() => setShowAddModal(true)}>Add User</Button>
+            </div>
 
-              {/* Export Buttons */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleExportCSV}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white rounded-lg transition-colors text-sm"
-                >
-                  <Download className="w-4 h-4" />
-                  Export CSV
-                </button>
-                <button
-                  onClick={handleExportJSON}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white rounded-lg transition-colors text-sm"
-                >
-                  <FileText className="w-4 h-4" />
-                  Export JSON
-                </button>
-                <span className="text-sm text-slate-500 dark:text-slate-400 ml-2">
-                  {filteredUsers.length} users found
-                </span>
-              </div>
+            {/* Search, Filters */}
+            <SearchFilterBar search={searchTerm} onSearchChange={setSearchTerm} placeholder="Search users...">
+              <AdvancedFilters
+                onApplyFilters={setAdvancedFilters}
+                onClearFilters={() => setAdvancedFilters(null)}
+                filterOptions={{
+                  showRole: true,
+                  // No "Organization" filter here — this page is scoped
+                  // to your own org's users by default (see ownOrgUsers
+                  // above), so there's nothing else left to filter by.
+                  // Sub-org staff are managed from that org's own page.
+                }}
+              />
+            </SearchFilterBar>
+
+            {/* Export */}
+            <div className="flex items-center gap-2 mb-5">
+              <Button variant="secondary" icon={Download} onClick={handleExportCSV}>Export CSV</Button>
+              <Button variant="secondary" icon={FileText} onClick={handleExportJSON}>Export JSON</Button>
+              <span className="text-sm text-slate-500 dark:text-slate-400 ml-2">
+                {filteredUsers.length} users found
+              </span>
             </div>
           </div>
 
-          {/* Users Table */}
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-            <div className="overflow-x-auto">
+          {/* Users Table — scrollable. overflow-auto lives directly on this
+              card (not a nested overflow-x-auto wrapper) so the sticky thead
+              below has one real scrolling ancestor to stick within. */}
+          <div className="flex-1 overflow-auto min-h-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
               <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-700/50">
+                <thead className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-700/50">
                   <tr>
                     <th className="px-6 py-4 text-left">
                       <input
@@ -342,7 +358,7 @@ const UsersList = () => {
                       </td>
                     </tr>
                   ) : (
-                    filteredUsers.map((u) => (
+                    pageUsers.map((u) => (
                       <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                         <td className="px-6 py-4">
                           <input
@@ -354,9 +370,13 @@ const UsersList = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center font-semibold">
-                              {u.first_name.charAt(0)}{u.last_name.charAt(0)}
-                            </div>
+                            <Avatar
+                              src={u.profile_picture}
+                              initials={`${u.first_name.charAt(0)}${u.last_name.charAt(0)}`}
+                              className="w-10 h-10 rounded-full"
+                              bg="bg-blue-500/20"
+                              textClass="text-blue-600 dark:text-blue-400"
+                            />
                             <span className="text-slate-900 dark:text-white font-medium">
                               {u.first_name} {u.last_name}
                             </span>
@@ -382,28 +402,28 @@ const UsersList = () => {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleToggleStatus(u.id)}
-                              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
                               title={u.is_active ? 'Deactivate' : 'Activate'}
                             >
                               {u.is_active ? (
-                                <ToggleRight className="w-5 h-5 text-green-400" />
+                                <ToggleRight className="w-4 h-4 text-green-400" />
                               ) : (
-                                <ToggleLeft className="w-5 h-5 text-slate-400" />
+                                <ToggleLeft className="w-4 h-4 text-slate-400" />
                               )}
                             </button>
                             <button
                               onClick={() => handleEdit(u)}
-                              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
                               title="Edit"
                             >
-                              <Edit className="w-5 h-5 text-blue-400" />
+                              <Edit className="w-4 h-4 text-blue-400" />
                             </button>
                             <button
                               onClick={() => handleDelete(u)}
-                              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
                               title="Delete"
                             >
-                              <Trash2 className="w-5 h-5 text-red-400" />
+                              <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
                           </div>
                         </td>
@@ -412,8 +432,17 @@ const UsersList = () => {
                   )}
                 </tbody>
               </table>
-            </div>
           </div>
+
+          <Pagination
+            page={currentPage}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            rangeStart={(currentPage - 1) * PAGE_SIZE + 1}
+            rangeEnd={Math.min(currentPage * PAGE_SIZE, filteredUsers.length)}
+            totalCount={filteredUsers.length}
+            itemLabel="users"
+          />
         </div>
       </div>
 
@@ -436,7 +465,7 @@ const UsersList = () => {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSuccess={fetchData}
-        organizations={tenants}
+        organizations={orgOptionsForModals}
         currentOrgId={user.organization_id}
         currentOrgType={user.role.startsWith('MSP') ? 'MSP' : 'STP'}
       />
@@ -449,7 +478,7 @@ const UsersList = () => {
         }}
         onSuccess={fetchData}
         user={selectedUser}
-        organizations={tenants}
+        organizations={orgOptionsForModals}
         currentOrgType={user.role.startsWith('MSP') ? 'MSP' : 'STP'}
       />
 
@@ -486,43 +515,38 @@ const RoleChangeModal = ({ isOpen, onClose, onConfirm, selectedCount, currentOrg
   const roleOptions = ROLE_OPTIONS[currentOrgType] || ROLE_OPTIONS.STP;
   const [newRole, setNewRole] = useState(roleOptions[0].value);
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full border border-slate-200 dark:border-slate-700">
-        <div className="p-6">
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-4">Change Role</h3>
-          <p className="text-slate-600 dark:text-slate-300 mb-6">
-            Select a new role for {selectedCount} selected user(s)
-          </p>
+    <Modal isOpen={isOpen} onClose={onClose} title="Change Role">
+      <div className="p-6">
+        <p className="text-slate-600 dark:text-slate-300 mb-6">
+          Select a new role for {selectedCount} selected user(s)
+        </p>
 
-          <select
-            value={newRole}
-            onChange={(e) => setNewRole(e.target.value)}
-            className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 mb-6"
+        <select
+          value={newRole}
+          onChange={(e) => setNewRole(e.target.value)}
+          className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 mb-6"
+        >
+          {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+        </select>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white text-sm font-medium rounded-lg transition-colors"
           >
-            {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-
-          <div className="flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-3 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white font-semibold rounded-lg transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onConfirm(newRole)}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
-            >
-              <Shield className="w-5 h-5" />
-              Change Role
-            </button>
-          </div>
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(newRole)}
+            className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-semibold rounded-lg transition-all flex items-center justify-center gap-2"
+          >
+            <Shield className="w-4 h-4" />
+            Change Role
+          </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

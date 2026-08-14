@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
+import Avatar from '../components/common/Avatar';
 import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI, salaryAPI, authAPI } from '../services/api';
-import { Settings as SettingsIcon, DollarSign, Save, Building2, Shield, Loader2, Check } from 'lucide-react';
+import { Settings as SettingsIcon, DollarSign, Save, Building2, Shield, Loader2, Check, Camera } from 'lucide-react';
 
 const TABS = [
   { id: 'general', label: 'General', icon: SettingsIcon },
@@ -13,10 +14,12 @@ const TABS = [
 ];
 
 const Settings = () => {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   const [orgs, setOrgs] = useState([]);
   const [users, setUsers] = useState([]);
@@ -147,6 +150,24 @@ const Settings = () => {
     }
   };
 
+  // ── AVATAR UPLOAD ────────────────────────────────────────────
+  const handleAvatarChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await userAPI.uploadProfilePicture(user.id, fd);
+      updateUser({ profile_picture: data.profile_picture });
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to upload photo');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   // ── SAVE BUTTON ───────────────────────────────────────────────
   const SaveBtn = ({ onClick }) => (
     <button
@@ -163,10 +184,10 @@ const Settings = () => {
 
   // ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
 
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar
           userRole={user.role}
           tenants={orgs}
@@ -175,7 +196,7 @@ const Settings = () => {
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
 
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           <h1 className="text-2xl text-slate-900 dark:text-white font-bold mb-6">Settings</h1>
 
           {/* Tabs */}
@@ -197,20 +218,49 @@ const Settings = () => {
 
           {/* ── GENERAL ───────────────── */}
           {activeTab === 'general' && (
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-xl">
-              <div className="flex justify-between mb-4">
-                <h2 className="text-slate-900 dark:text-white font-semibold">General Settings</h2>
-                <SaveBtn onClick={handleSaveGeneral} />
+            <div className="space-y-6">
+              {/* Your Profile */}
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-xl">
+                <h2 className="text-slate-900 dark:text-white font-semibold mb-4">Your Profile</h2>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <Avatar
+                      src={user?.profile_picture}
+                      initials={`${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`}
+                      className="w-16 h-16 rounded-full text-xl"
+                    />
+                    <button
+                      onClick={() => avatarInputRef.current?.click()}
+                      disabled={uploadingAvatar}
+                      title="Change photo"
+                      className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-all disabled:opacity-50"
+                    >
+                      <Camera className="w-3 h-3 text-white" />
+                    </button>
+                    <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                  </div>
+                  <div>
+                    <p className="text-slate-900 dark:text-white font-medium">{user?.first_name} {user?.last_name}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{user?.email}</p>
+                  </div>
+                </div>
               </div>
 
-              <input
-                value={generalSettings.org_name}
-                onChange={e =>
-                  setGeneralSettings(s => ({ ...s, org_name: e.target.value }))
-                }
-                className="w-full p-2 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
-                placeholder="Organization Name"
-              />
+              <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 rounded-xl">
+                <div className="flex justify-between mb-4">
+                  <h2 className="text-slate-900 dark:text-white font-semibold">General Settings</h2>
+                  <SaveBtn onClick={handleSaveGeneral} />
+                </div>
+
+                <input
+                  value={generalSettings.org_name}
+                  onChange={e =>
+                    setGeneralSettings(s => ({ ...s, org_name: e.target.value }))
+                  }
+                  className="w-full p-2 rounded bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white"
+                  placeholder="Organization Name"
+                />
+              </div>
             </div>
           )}
 

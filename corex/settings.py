@@ -219,6 +219,13 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media (user uploads — profile pictures, org logos, room images, documents).
+# MEDIA_ROOT = BASE_DIR so the existing upload_to paths (e.g. 'user_documents/',
+# 'room_images/') keep resolving to the same folders that already exist at
+# the project root — nothing needs to move.
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

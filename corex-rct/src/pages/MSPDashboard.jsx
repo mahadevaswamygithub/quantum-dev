@@ -4,19 +4,16 @@ import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI } from '../services/api';
-import { Building2, Users, TrendingUp, Plus, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { AddOrganizationModal } from '../components/OrganizationModals';
+import { Building2, Users, TrendingUp } from 'lucide-react';
 import WorldMap from '../components/WorldMap';
+import { ORG_TYPES } from '../constants/orgTypes';
 
 const MSPDashboard = () => {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [organizations, setOrganizations] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
 
@@ -38,6 +35,14 @@ const MSPDashboard = () => {
   const activeOrgs = organizations.filter(o => o.is_active).length;
   const activeUsers = users.filter(u => u.is_active).length;
 
+  // Sub-orgs only ever carry a business-vertical org_type (MSP's own org
+  // never does — see constants/orgTypes.js), so this only needs to cover
+  // what `organizations` (tenantAPI.getTenants(), sub-orgs only) already is.
+  const orgTypeCounts = ORG_TYPES.map(t => ({
+    ...t,
+    count: organizations.filter(o => o.org_type === t.value).length,
+  }));
+
   const stats = [
     { title: 'Organizations', value: organizations.length, sub: `${activeOrgs} active`, icon: Building2, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-500/10' },
     { title: 'Total Users', value: users.length, sub: `${activeUsers} active`, icon: Users, color: 'from-green-500 to-emerald-600', bg: 'bg-green-500/10' },
@@ -47,9 +52,9 @@ const MSPDashboard = () => {
   if (loading) return <PageSpinner label="Loading..." />;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar
           userRole={user.role}
           tenants={organizations}
@@ -58,7 +63,7 @@ const MSPDashboard = () => {
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
 
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           {/* Header */}
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">MSP Dashboard</h1>
@@ -89,87 +94,29 @@ const MSPDashboard = () => {
             <WorldMap organizations={organizations} />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Recent Organizations */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900 dark:text-white">Recent Organizations</h2>
-                <button onClick={() => navigate('/msp/organizations')} className="text-xs text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 flex items-center gap-1">
-                  View All <ArrowRight className="w-3 h-3" />
-                </button>
+          {/* Organizations by Type — what business verticals you're
+              currently managing, instead of a "recent" list that just
+              duplicates the Organizations page one click away. */}
+          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5">
+            <h2 className="font-semibold text-slate-900 dark:text-white mb-4">Organizations by Type</h2>
+            {organizations.length === 0 ? (
+              <div className="text-center py-8">
+                <Building2 className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                <p className="text-slate-500 dark:text-slate-400 text-sm">No organizations yet</p>
               </div>
-              <div className="p-4 space-y-2">
-                {organizations.slice(0, 5).map(org => (
-                  <div
-                    key={org.id}
-                    onClick={() => navigate(`/msp/organizations/${org.id}`)}
-                    className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all group"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded-lg flex items-center justify-center">
-                        <Building2 className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-slate-900 dark:text-white text-sm font-medium group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">{org.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-500">{org.user_count || 0} users</p>
-                      </div>
-                    </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${org.is_active ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}>
-                      {org.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                ))}
-                {organizations.length === 0 && (
-                  <div className="text-center py-8">
-                    <Building2 className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mb-3">No organizations yet</p>
-                    <button onClick={() => setShowAddModal(true)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-all">
-                      <Plus className="w-3.5 h-3.5" /> Add Organization
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Recent Users */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
-              <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-900 dark:text-white">Recent Users</h2>
-                <button onClick={() => navigate('/msp/users')} className="text-xs text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 flex items-center gap-1">
-                  View All <ArrowRight className="w-3 h-3" />
-                </button>
-              </div>
-              <div className="p-4 space-y-2">
-                {users.slice(0, 5).map(u => (
-                  <div
-                    key={u.id}
-                    onClick={() => navigate(`/msp/users/${u.id}`)}
-                    className="flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-lg cursor-pointer transition-all group"
-                  >
-                    <div className="w-8 h-8 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-xs font-bold">
-                      {u.first_name?.[0]}{u.last_name?.[0]}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-slate-900 dark:text-white text-sm font-medium group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors truncate">{u.first_name} {u.last_name}</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-500 truncate">{u.organization_name || 'No org'}</p>
-                    </div>
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium flex-shrink-0 ${u.is_active ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'}`}>
-                      {u.is_active ? 'Active' : 'Inactive'}
-                    </span>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {orgTypeCounts.map(t => (
+                  <div key={t.value} className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 text-center">
+                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{t.count}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{t.label}</p>
                   </div>
                 ))}
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
-
-      <AddOrganizationModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSuccess={fetchData}
-        parentOrgId={user.organization_id}
-      />
     </div>
   );
 };

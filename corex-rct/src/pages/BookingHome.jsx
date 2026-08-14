@@ -4,6 +4,7 @@ import { BedDouble, Search, ChevronRight } from 'lucide-react';
 import Card from '../components/common/Card';
 import EmptyState from '../components/common/EmptyState';
 import PageSpinner from '../components/common/PageSpinner';
+import Avatar from '../components/common/Avatar';
 import { bookingAPI } from '../services/api';
 
 /**
@@ -58,7 +59,10 @@ const BookingHome = () => {
                 className="p-4 flex items-center justify-between cursor-pointer"
                 onClick={() => navigate(`/book/${org.id}`)}
               >
-                <span className="font-medium text-slate-900 dark:text-white">{org.name}</span>
+                <div className="flex items-center gap-3">
+                  <Avatar src={org.logo} icon={BedDouble} className="w-10 h-10 rounded-lg" />
+                  <span className="font-medium text-slate-900 dark:text-white">{org.name}</span>
+                </div>
                 <ChevronRight className="w-5 h-5 text-slate-400" />
               </Card>
             ))}

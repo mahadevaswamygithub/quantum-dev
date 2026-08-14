@@ -15,6 +15,8 @@ apps/tenants/urls.py); this file only wires prefixes to them.
   /api/bookings/...   → room-booking vertical (rooms, reservations, customer sign-up)
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
@@ -33,3 +35,6 @@ urlpatterns = [
         path("bookings/",    include("apps.bookings.urls")),
     ])),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

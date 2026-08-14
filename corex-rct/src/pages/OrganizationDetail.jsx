@@ -1,14 +1,15 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
+import Avatar from '../components/common/Avatar';
 import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI } from '../services/api';
 import {
   Building2, Users, ArrowLeft, Calendar, CheckCircle,
   Shield, UserCircle, Plus, Edit, Trash2, ToggleLeft, ToggleRight,
-  Eye, ChevronRight, LogIn
+  Eye, ChevronRight, LogIn, Camera
 } from 'lucide-react';
 import { AddUserModal, EditUserModal, DeleteUserModal } from '../components/UserModals';
 import { orgTypeLabel } from '../constants/orgTypes';
@@ -31,8 +32,26 @@ const OrganizationDetail = () => {
   const [showDeleteUser, setShowDeleteUser] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef(null);
 
   const basePath = '/msp';
+
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await tenantAPI.uploadLogo(id, fd);
+      // Merge just the logo — `data` comes back as the flat org serializer,
+      // while `org` here also carries the detail-only fields (domains/users/stats).
+      setOrg(prev => ({ ...prev, logo: data.logo }));
+    } catch { alert('Failed to upload logo'); }
+    finally { setUploadingLogo(false); }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -87,12 +106,12 @@ const OrganizationDetail = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} tenants={allOrgs} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-5">
             <button onClick={() => navigate(`${basePath}/organizations`)} className="hover:text-slate-900 dark:hover:text-white transition-colors flex items-center gap-1">
@@ -105,10 +124,23 @@ const OrganizationDetail = () => {
           {/* Org Header */}
           <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 mb-5">
             <div className="flex items-center gap-4">
-              <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${
-                org.tenant_type === 'MSP' ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-              }`}>
-                <Building2 className="w-7 h-7" />
+              <div className="relative flex-shrink-0">
+                <Avatar
+                  src={org.logo}
+                  icon={Building2}
+                  className="w-14 h-14 rounded-xl"
+                  bg={org.tenant_type === 'MSP' ? 'bg-green-500/20' : 'bg-purple-500/20'}
+                  textClass={org.tenant_type === 'MSP' ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'}
+                />
+                <button
+                  onClick={() => logoInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                  title="Change logo"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-all disabled:opacity-50"
+                >
+                  <Camera className="w-3 h-3 text-white" />
+                </button>
+                <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
               </div>
               <div className="flex-1">
                 <h1 className="text-xl font-bold text-slate-900 dark:text-white">{org.name}</h1>

@@ -95,6 +95,8 @@ styleEl.textContent = `
   .cx-btn-send:not(:disabled):active { transform:scale(.95) }
   .cx-chip:hover { border-color:rgba(99,179,237,.45) !important; background:rgba(99,179,237,.06) !important }
   .cx-icon-btn:hover { background:var(--cx-icon-hover-bg) !important; color:var(--cx-icon-hover-color) !important }
+  .cx-copy-btn { opacity:0; transition:opacity .15s }
+  .cx-bubble-group:hover .cx-copy-btn { opacity:1 }
 `;
 document.head.appendChild(styleEl);
 
@@ -234,7 +236,8 @@ function useChat(sid) {
   const [msgs,setMsgs]           = useState([]);
   const [loading,setLoading]     = useState(false);
   const [activeTool,setActiveTool] = useState(null);
-  const fetched = useRef(false);
+  const fetched   = useRef(false);
+  const abortRef  = useRef(null);   // current in-flight request's AbortController, if any
 
   useEffect(() => {
     if (!sid||fetched.current) return;
@@ -251,8 +254,10 @@ function useChat(sid) {
       {role:"assistant",content:"", id:aid,streaming:true},
     ]);
     setLoading(true); setActiveTool(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      const resp = await chatAPI.streamMessage(text,sid);
+      const resp = await chatAPI.streamMessage(text,sid,controller.signal);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const reader=resp.body.getReader(), dec=new TextDecoder();
       let buf="";
@@ -281,15 +286,29 @@ function useChat(sid) {
           }
       }
     } catch(e) {
-      setMsgs(p=>p.map(m=>m.streaming?{...m,content:`Error: ${e.message}`,streaming:false,error:true}:m));
-    } finally { setLoading(false); setActiveTool(null); }
+      if (e.name === "AbortError") {
+        // User hit Stop — keep whatever partial text already streamed in
+        // rather than treating it as a failure.
+        setMsgs(p=>p.map(m=>m.streaming?{...m,streaming:false,stopped:true}:m));
+      } else {
+        setMsgs(p=>p.map(m=>m.streaming?{...m,content:`Error: ${e.message}`,streaming:false,error:true}:m));
+      }
+    } finally { setLoading(false); setActiveTool(null); abortRef.current=null; }
   },[sid]);
+
+  const stop = useCallback(() => { abortRef.current?.abort(); },[]);
 
   const clear = useCallback(async()=>{
-    await chatAPI.clearSession(sid); setMsgs([]); fetched.current=false;
+    // Optimistic — clear the UI instantly instead of waiting on the
+    // network round-trip (Django's session-delete also best-effort clears
+    // the orchestrator's memory server-side, which was making the button
+    // feel laggy). The server call still happens, just not blocking the UI.
+    setMsgs([]); fetched.current=false;
+    try { await chatAPI.clearSession(sid); }
+    catch(e) { console.error("Failed to clear session on the server:", e); }
   },[sid]);
 
-  return {msgs,loading,activeTool,send,clear};
+  return {msgs,loading,activeTool,send,clear,stop};
 }
 
 /* ─── Markdown ───────────────────────────────────────────────────────────── */
@@ -321,17 +340,52 @@ function Markdown({text,isUser}){
   );
 }
 
-/* ─── Typing dots ────────────────────────────────────────────────────────── */
-function TypingDots(){
+/* ─── Thinking indicator ─────────────────────────────────────────────────── *
+   Replaces a generic three-dot pulse with something that's actually
+   CoreX's own — the same orbiting logo mark used on the FAB, plus a
+   rotating line of flavor text (à la Claude Code's CLI spinner), so it
+   reads as "the assistant is working" rather than a stock loading widget. */
+const THINKING_PHRASES = [
+  "Thinking", "Consulting the core", "Connecting the dots",
+  "Crunching data", "Reasoning it out", "Syncing the mesh",
+];
+
+function ThinkingIndicator(){
+  const [phraseIdx,setPhraseIdx] = useState(0);
+  useEffect(()=>{
+    const id = setInterval(()=>setPhraseIdx(i=>(i+1)%THINKING_PHRASES.length), 1800);
+    return ()=>clearInterval(id);
+  },[]);
   return (
-    <div style={{display:"flex",gap:5,padding:"8px 2px",alignItems:"center"}}>
-      {[0,1,2].map(i=>(
-        <div key={i} style={{
-          width:6,height:6,borderRadius:"50%",
-          background:T.accent,
-          animation:`cxTyping 1.2s ease-in-out ${i*.2}s infinite`,
+    <div className="cx-fade" style={{
+      display:"inline-flex",alignItems:"center",gap:10,
+      padding:"7px 14px 7px 10px",
+      background:"linear-gradient(135deg,rgba(99,179,237,.07),rgba(183,148,244,.07))",
+      border:"1px solid rgba(99,179,237,.2)",
+      borderRadius:99,alignSelf:"flex-start",
+    }}>
+      <div style={{position:"relative",width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+        <div style={{
+          position:"absolute",inset:-4,borderRadius:"50%",
+          border:"1.5px dashed rgba(99,179,237,.35)",
+          animation:"cxOrbit 3s linear infinite",
         }}/>
-      ))}
+        <CoreXLogo size={13} animated/>
+      </div>
+      <span key={phraseIdx} className="cx-fade" style={{
+        fontFamily:T.fontB,fontSize:12.5,color:T.accent,letterSpacing:".01em",
+        display:"inline-flex",alignItems:"center",gap:4,
+      }}>
+        {THINKING_PHRASES[phraseIdx]}
+        <span style={{display:"inline-flex",gap:2.5,marginLeft:1}}>
+          {[0,1,2].map(i=>(
+            <span key={i} style={{
+              width:3,height:3,borderRadius:"50%",background:T.accent,
+              animation:`cxTyping 1.2s ease-in-out ${i*.2}s infinite`,
+            }}/>
+          ))}
+        </span>
+      </span>
     </div>
   );
 }
@@ -362,6 +416,14 @@ function ToolPill({tool}){
 /* ─── Message bubble ─────────────────────────────────────────────────────── */
 function Bubble({msg,isLast}){
   const isUser=msg.role==="user";
+  const [copied,setCopied]=useState(false);
+  const canCopy = !isUser && !msg.streaming && msg.content && !msg.error;
+
+  const copy = async ()=>{
+    try{ await navigator.clipboard.writeText(msg.content); setCopied(true); setTimeout(()=>setCopied(false),1500); }
+    catch{ /* clipboard permission denied — fail silently, nothing to recover */ }
+  };
+
   return (
     <div className="cx-msg-in" style={{
       display:"flex",flexDirection:"column",
@@ -378,21 +440,44 @@ function Bubble({msg,isLast}){
           CoreX AI
         </div>
       )}
-      <div style={{
-        maxWidth:"82%",padding:"11px 15px",borderRadius:16,
-        borderBottomRightRadius:isUser?4:16,
-        borderBottomLeftRadius: isUser?16:4,
-        background:isUser?T.userBg:msg.error?"var(--cx-error-bg)":"var(--cx-msg-bg)",
-        border:isUser?"none":msg.error?"1px solid var(--cx-error-border)":"1px solid var(--cx-border)",
-        backdropFilter:"blur(10px)",
-        boxShadow:isUser?"0 4px 20px rgba(43,108,176,.3)":"var(--cx-msg-shadow)",
-      }}>
-        <Markdown text={msg.content} isUser={isUser}/>
-        {msg.streaming&&isLast&&(
-          <span className="cx-blink" style={{
-            display:"inline-block",width:2,height:13,
-            background:T.accent,marginLeft:3,verticalAlign:"middle",borderRadius:1,
-          }}/>
+      <div className="cx-bubble-group" style={{display:"flex",flexDirection:"column",gap:3,maxWidth:"82%",alignItems:isUser?"flex-end":"flex-start"}}>
+        <div style={{
+          padding:"11px 15px",borderRadius:16,
+          borderBottomRightRadius:isUser?4:16,
+          borderBottomLeftRadius: isUser?16:4,
+          background:isUser?T.userBg:msg.error?"var(--cx-error-bg)":"var(--cx-msg-bg)",
+          border:isUser?"none":msg.error?"1px solid var(--cx-error-border)":"1px solid var(--cx-border)",
+          backdropFilter:"blur(10px)",
+          boxShadow:isUser?"0 4px 20px rgba(43,108,176,.3)":"var(--cx-msg-shadow)",
+        }}>
+          <Markdown text={msg.content} isUser={isUser}/>
+          {msg.streaming&&isLast&&(
+            <span className="cx-blink" style={{
+              display:"inline-block",width:2,height:13,
+              background:T.accent,marginLeft:3,verticalAlign:"middle",borderRadius:1,
+            }}/>
+          )}
+        </div>
+        {msg.stopped&&(
+          <span style={{fontFamily:T.fontB,fontSize:10,color:T.txtMut,fontStyle:"italic"}}>Stopped</span>
+        )}
+        {canCopy&&(
+          <button
+            className="cx-copy-btn cx-icon-btn" onClick={copy}
+            title={copied?"Copied!":"Copy"}
+            style={{
+              display:"flex",alignItems:"center",gap:4,
+              padding:"3px 7px",borderRadius:6,border:"none",cursor:"pointer",
+              background:"transparent",color:copied?T.green:T.txtMut,
+              fontFamily:T.fontB,fontSize:10,transition:"all .15s",
+            }}
+          >
+            {copied
+              ?<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M13.5 4.5L6 12l-3.5-3.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              :<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.3"/><path d="M2.5 10.5v-7A1 1 0 013.5 2.5h7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
+            }
+            {copied?"Copied":"Copy"}
+          </button>
         )}
       </div>
     </div>
@@ -464,7 +549,22 @@ function EmptyState({onSelect}){
 }
 
 /* ─── Header ─────────────────────────────────────────────────────────────── */
-function Header({user,loading,hasMsgs,onClear,onClose}){
+function Header({user,loading,hasMsgs,onClear,onClose,expanded,onToggleExpand}){
+  const [confirming,setConfirming]=useState(false);
+  const confirmTimer=useRef(null);
+
+  const handleClearClick=()=>{
+    if(!confirming){
+      setConfirming(true);
+      confirmTimer.current=setTimeout(()=>setConfirming(false),3000);
+      return;
+    }
+    clearTimeout(confirmTimer.current);
+    setConfirming(false);
+    onClear();
+  };
+  useEffect(()=>()=>clearTimeout(confirmTimer.current),[]);
+
   return (
     <div style={{
       padding:"13px 14px",
@@ -523,19 +623,45 @@ function Header({user,loading,hasMsgs,onClear,onClose}){
         </div>
       </div>
 
-      <div style={{display:"flex",gap:3}}>
+      <div style={{display:"flex",gap:3,alignItems:"center"}}>
         {hasMsgs&&(
-          <button className="cx-icon-btn" onClick={onClear} title="Clear chat" style={{
-            width:30,height:30,borderRadius:8,border:"none",cursor:"pointer",
-            background:"transparent",color:T.txtMut,fontSize:13,
-            display:"flex",alignItems:"center",justifyContent:"center",
-            transition:"all .15s",
-          }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-              <path d="M2 4h12M5.333 4V2.667A1.333 1.333 0 016.667 1.333h2.666A1.333 1.333 0 0110.667 2.667V4m2 0v9.333A1.333 1.333 0 0111.333 14.667H4.667A1.333 1.333 0 013.333 13.333V4h9.334z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-            </svg>
-          </button>
+          confirming ? (
+            <button onClick={handleClearClick} title="Click again to confirm" style={{
+              display:"flex",alignItems:"center",gap:5,
+              padding:"0 10px",height:30,borderRadius:8,border:"none",cursor:"pointer",
+              background:"rgba(252,129,129,.15)",color:"#E53E3E",
+              fontFamily:T.fontB,fontSize:11,fontWeight:600,
+              transition:"all .15s",whiteSpace:"nowrap",
+            }}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4h12M5.333 4V2.667A1.333 1.333 0 016.667 1.333h2.666A1.333 1.333 0 0110.667 2.667V4m2 0v9.333A1.333 1.333 0 0111.333 14.667H4.667A1.333 1.333 0 013.333 13.333V4h9.334z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+              Confirm?
+            </button>
+          ) : (
+            <button className="cx-icon-btn" onClick={handleClearClick} title="Clear chat" style={{
+              width:30,height:30,borderRadius:8,border:"none",cursor:"pointer",
+              background:"transparent",color:T.txtMut,fontSize:13,
+              display:"flex",alignItems:"center",justifyContent:"center",
+              transition:"all .15s",
+            }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4h12M5.333 4V2.667A1.333 1.333 0 016.667 1.333h2.666A1.333 1.333 0 0110.667 2.667V4m2 0v9.333A1.333 1.333 0 0111.333 14.667H4.667A1.333 1.333 0 013.333 13.333V4h9.334z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+              </svg>
+            </button>
+          )
         )}
+        <button className="cx-icon-btn" onClick={onToggleExpand} title={expanded?"Shrink":"Expand"} style={{
+          width:30,height:30,borderRadius:8,border:"none",cursor:"pointer",
+          background:"transparent",color:T.txtMut,
+          display:"flex",alignItems:"center",justifyContent:"center",
+          transition:"all .15s",
+        }}>
+          {expanded
+            ?<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M6 2v3a1 1 0 01-1 1H2M10 2v3a1 1 0 001 1h3M6 14v-3a1 1 0 00-1-1H2M10 14v-3a1 1 0 011-1h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            :<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 6V3a1 1 0 011-1h3M11 2h3a1 1 0 011 1v3M14 10v3a1 1 0 01-1 1h-3M5 14H2a1 1 0 01-1-1v-3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          }
+        </button>
         <button className="cx-icon-btn" onClick={onClose} style={{
           width:30,height:30,borderRadius:8,border:"none",cursor:"pointer",
           background:"transparent",color:T.txtMut,fontSize:18,
@@ -548,7 +674,7 @@ function Header({user,loading,hasMsgs,onClear,onClose}){
 }
 
 /* ─── Input bar ──────────────────────────────────────────────────────────── */
-function InputBar({value,onChange,onKeyDown,onSend,disabled,inputRef}){
+function InputBar({value,onChange,onKeyDown,onSend,onStop,disabled,inputRef}){
   const [focused,setFocused]=useState(false);
   return (
     <div style={{
@@ -576,27 +702,39 @@ function InputBar({value,onChange,onKeyDown,onSend,disabled,inputRef}){
             overflowY:"auto",paddingTop:2,
           }}
         />
-        <button
-          className="cx-btn-send" onClick={onSend}
-          disabled={!value.trim()||disabled}
-          style={{
-            width:34,height:34,borderRadius:9,border:"none",cursor:"pointer",
-            flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
-            background:value.trim()&&!disabled
-              ?"linear-gradient(135deg,#3182CE,#6B46C1)"
-              :"var(--cx-send-idle-bg)",
-            color:value.trim()&&!disabled?"#fff":T.txtMut,
-            transition:"all .2s",
-            boxShadow:value.trim()&&!disabled?"0 4px 14px rgba(49,130,206,.35)":"none",
-          }}
-        >
-          {disabled
-            ?<div className="cx-spin" style={{width:14,height:14,borderRadius:"50%",border:"2px solid var(--cx-border)",borderTopColor:"var(--cx-accent)"}}/>
-            :<svg width="15" height="15" viewBox="0 0 20 20" fill="none">
-               <path d="M17.5 2.5L10 10M17.5 2.5L12 17.5L10 10L2.5 7.5L17.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-             </svg>
-          }
-        </button>
+        {disabled ? (
+          <button
+            className="cx-btn-send" onClick={onStop} title="Stop generating"
+            style={{
+              width:34,height:34,borderRadius:9,border:"none",cursor:"pointer",
+              flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+              background:"rgba(229,62,62,.12)",color:"#E53E3E",
+              transition:"all .2s",
+            }}
+          >
+            <div style={{width:11,height:11,borderRadius:3,background:"currentColor"}}/>
+          </button>
+        ) : (
+          <button
+            className="cx-btn-send" onClick={onSend}
+            disabled={!value.trim()}
+            title="Send"
+            style={{
+              width:34,height:34,borderRadius:9,border:"none",cursor:"pointer",
+              flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
+              background:value.trim()
+                ?"linear-gradient(135deg,#3182CE,#6B46C1)"
+                :"var(--cx-send-idle-bg)",
+              color:value.trim()?"#fff":T.txtMut,
+              transition:"all .2s",
+              boxShadow:value.trim()?"0 4px 14px rgba(49,130,206,.35)":"none",
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none">
+              <path d="M17.5 2.5L10 10M17.5 2.5L12 17.5L10 10L2.5 7.5L17.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+        )}
       </div>
       <div style={{
         textAlign:"center",marginTop:7,
@@ -637,12 +775,13 @@ function Fab({onClick}){
 
 /* ─── Root ───────────────────────────────────────────────────────────────── */
 export default function ChatAssistant({sessionId:propSid,user}){
-  const [open,setOpen]   = useState(false);
-  const [input,setInput] = useState("");
+  const [open,setOpen]         = useState(false);
+  const [expanded,setExpanded] = useState(false);
+  const [input,setInput]       = useState("");
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
   const sid = useStableSession(propSid,user?.id);
-  const {msgs,loading,activeTool,send,clear} = useChat(sid);
+  const {msgs,loading,activeTool,send,clear,stop} = useChat(sid);
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,activeTool]);
   useEffect(()=>{ if(open) setTimeout(()=>inputRef.current?.focus(),120); },[open]);
@@ -655,13 +794,15 @@ export default function ChatAssistant({sessionId:propSid,user}){
   return (
     <div className="cx-panel" style={{
       position:"fixed",bottom:28,right:28,zIndex:9999,
-      width:400,height:620,
+      width:expanded?"min(560px, 92vw)":400,
+      height:expanded?"min(820px, 88vh)":620,
       background:T.panel,
       border:"1px solid var(--cx-border)",
       borderRadius:22,
       display:"flex",flexDirection:"column",overflow:"hidden",
       fontFamily:T.fontB,
       boxShadow:"var(--cx-panel-shadow)",
+      transition:"width .25s cubic-bezier(.22,1,.36,1),height .25s cubic-bezier(.22,1,.36,1)",
     }}>
       {/* Top accent line */}
       <div style={{
@@ -670,7 +811,11 @@ export default function ChatAssistant({sessionId:propSid,user}){
         zIndex:1,pointerEvents:"none",
       }}/>
 
-      <Header user={user} loading={loading} hasMsgs={msgs.length>0} onClear={clear} onClose={()=>setOpen(false)}/>
+      <Header
+        user={user} loading={loading} hasMsgs={msgs.length>0}
+        onClear={clear} onClose={()=>setOpen(false)}
+        expanded={expanded} onToggleExpand={()=>setExpanded(e=>!e)}
+      />
 
       <div className="cx-scrollbar" style={{
         flex:1,overflowY:"auto",padding:"14px 13px",
@@ -678,11 +823,17 @@ export default function ChatAssistant({sessionId:propSid,user}){
         background:"radial-gradient(ellipse at 50% 0%,rgba(99,179,237,.025) 0%,transparent 55%)",
       }}>
         {msgs.length===0
-          ?<EmptyState onSelect={t=>{setInput(t);setTimeout(()=>inputRef.current?.focus(),60);}}/>
+          ?<EmptyState onSelect={t=>{if(!loading) send(t);}}/>
           :<>
-            {msgs.map((m,i)=><Bubble key={m.id} msg={m} isLast={i===msgs.length-1}/>)}
+            {msgs.map((m,i)=>{
+              // Hide the still-empty placeholder bubble while nothing has
+              // streamed in yet — ThinkingIndicator/ToolPill below covers
+              // that state instead of showing a bare blinking cursor.
+              if(m.streaming&&m.content==="") return null;
+              return <Bubble key={m.id} msg={m} isLast={i===msgs.length-1}/>;
+            })}
             {activeTool&&<ToolPill tool={activeTool}/>}
-            {loading&&!activeTool&&msgs[msgs.length-1]?.content===""&&<TypingDots/>}
+            {loading&&!activeTool&&msgs[msgs.length-1]?.content===""&&<ThinkingIndicator/>}
             <div ref={bottomRef}/>
           </>
         }
@@ -692,7 +843,7 @@ export default function ChatAssistant({sessionId:propSid,user}){
 
       <InputBar
         value={input} onChange={e=>setInput(e.target.value)}
-        onKeyDown={onKey} onSend={submit}
+        onKeyDown={onKey} onSend={submit} onStop={stop}
         disabled={loading} inputRef={inputRef}
       />
     </div>

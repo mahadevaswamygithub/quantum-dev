@@ -12,13 +12,22 @@ All returned models are LangChain BaseChatModel and support:
 """
 
 import logging
+from functools import lru_cache
 from langchain_core.language_models import BaseChatModel
 from config import settings
 
 logger = logging.getLogger(__name__)
 
 
+@lru_cache(maxsize=4)
 def get_llm(provider: str | None = None) -> BaseChatModel:
+    # Cached — settings are static for the process lifetime, so there's no
+    # reason to reconstruct the provider SDK client (and its underlying
+    # HTTP client/connection pool) from scratch on every single chat
+    # message. build_graph() calls this once per request via
+    # `.bind_tools(tools)`, which returns a lightweight wrapper around
+    # whatever instance it's given — it does NOT mutate this cached model,
+    # so sharing one instance across requests is safe.
     provider = provider or settings.LLM_PROVIDER
     logger.info(f"Loading LLM provider → {provider}")
 
@@ -79,4 +88,10 @@ def _ollama() -> BaseChatModel:
         model=settings.OLLAMA_MODEL,
         base_url=settings.OLLAMA_BASE_URL,
         temperature=settings.LLM_TEMPERATURE,
+        # Ollama unloads a model from memory 5 minutes after its last use
+        # by default — the next message after any gap then pays a real
+        # multi-second reload cost before it can generate a single token,
+        # regardless of anything in this codebase. Keeping it resident for
+        # the life of this process avoids that repeated cold start.
+        keep_alive=-1,
     )

@@ -9,6 +9,9 @@ export const tenantAPI = {
   updateTenant: (id, data) => api.put(`/tenants/organizations/${id}/`, data),
   deleteTenant: (id) => api.delete(`/tenants/organizations/${id}/`),
   toggleTenantStatus: (id) => api.post(`/tenants/organizations/${id}/toggle_status/`),
+  uploadLogo: (id, formData) => api.post(`/tenants/organizations/${id}/upload_logo/`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   impersonateOrganization: (id) => api.post(`/tenants/organizations/${id}/impersonate/`),
   bulkActivate: (org_ids) => api.post('/tenants/organizations/bulk_activate/', { org_ids }),
   bulkDeactivate: (org_ids) => api.post('/tenants/organizations/bulk_deactivate/', { org_ids }),

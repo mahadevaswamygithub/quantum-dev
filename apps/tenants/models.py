@@ -19,6 +19,7 @@ class Organization(TenantMixin):
     ]
 
     name = models.CharField(max_length=100)
+    logo = models.ImageField(upload_to='org_logos/', null=True, blank=True)
     tenant_type = models.CharField(max_length=3, choices=TENANT_TYPE_CHOICES)
     org_type = models.CharField(
         max_length=20, choices=ORG_TYPE_CHOICES, null=True, blank=True,

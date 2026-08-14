@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import ForgotPasswordModal from '../components/ForgotPasswordModal';
+import AuthBackground from '../components/AuthBackground';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -32,7 +33,7 @@ const Login = () => {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+      <AuthBackground>
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
             <div className="inline-block w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
@@ -123,7 +124,7 @@ const Login = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AuthBackground>
 
       <ForgotPasswordModal
         isOpen={showForgotPassword}

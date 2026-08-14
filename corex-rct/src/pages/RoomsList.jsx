@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import Card from '../components/common/Card';
 import Badge from '../components/common/Badge';
+import Button from '../components/common/Button';
 import PriceTag from '../components/common/PriceTag';
 import EmptyState from '../components/common/EmptyState';
 import SearchFilterBar from '../components/common/SearchFilterBar';
@@ -67,12 +68,12 @@ const RoomsList = () => {
   if (loading) return <PageSpinner label="Loading rooms..." />;
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -80,12 +81,7 @@ const RoomsList = () => {
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {rooms.length} rooms</p>
             </div>
-            <button
-              onClick={() => { setEditingRoom(null); setShowForm(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-semibold rounded-lg transition-all"
-            >
-              <Plus className="w-4 h-4" /> Add Room
-            </button>
+            <Button icon={Plus} onClick={() => { setEditingRoom(null); setShowForm(true); }}>Add Room</Button>
           </div>
 
           <BookingLinkCard />

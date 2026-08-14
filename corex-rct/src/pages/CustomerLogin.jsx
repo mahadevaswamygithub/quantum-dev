@@ -3,6 +3,8 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { Mail, Lock, AlertCircle, Loader2, BedDouble } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useOrgInfo } from '../hooks/useOrgInfo';
+import AuthBackground from '../components/AuthBackground';
+import Avatar from '../components/common/Avatar';
 
 const CustomerLogin = () => {
   const { orgId } = useParams();
@@ -42,12 +44,10 @@ const CustomerLogin = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+    <AuthBackground>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-flex w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl items-center justify-center mb-4">
-            <BedDouble className="w-8 h-8 text-white" />
-          </div>
+          <Avatar src={org.logo} icon={BedDouble} className="w-16 h-16 rounded-2xl mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">{org.name}</h1>
           <p className="text-slate-500 dark:text-slate-400">Sign in to book a room</p>
         </div>
@@ -91,7 +91,7 @@ const CustomerLogin = () => {
           </div>
         </div>
       </div>
-    </div>
+    </AuthBackground>
   );
 };
 

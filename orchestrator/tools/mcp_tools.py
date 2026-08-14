@@ -24,6 +24,21 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+# One pooled async client for the process lifetime instead of opening a
+# fresh connection (TCP handshake + TLS if applicable) for every single
+# tool call — a chat turn that triggers 2-3 tool calls was paying that
+# setup cost 2-3 times over for no reason, since they all talk to the same
+# Django host. httpx.AsyncClient is safe to share across concurrent
+# requests/tasks.
+_client: httpx.AsyncClient | None = None
+
+
+def _get_client() -> httpx.AsyncClient:
+    global _client
+    if _client is None:
+        _client = httpx.AsyncClient(timeout=30.0)
+    return _client
+
 # ── Tool schemas (JSON Schema "properties"/"required", same shape the LLM sees) ──
 TOOL_SCHEMAS: dict[str, dict] = {
     "list_organizations": {
@@ -102,17 +117,17 @@ def _auth_error_payload(e: httpx.HTTPStatusError) -> dict:
 async def _django_get(path: str, headers: dict, params: dict = None) -> dict:
     """GET request to Django's REST API with the forwarded JWT + tenant headers."""
     url = f"{settings.DJANGO_API_BASE_URL}{path}"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            r = await client.get(url, headers=headers, params=params or {})
-            r.raise_for_status()
-            return r.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"[tools→Django] {e.response.status_code} on GET {url}: {e.response.text[:200]}")
-            return _auth_error_payload(e)
-        except Exception as e:
-            logger.error(f"[tools→Django] error on GET {url}: {e}")
-            return {"error": str(e)}
+    client = _get_client()
+    try:
+        r = await client.get(url, headers=headers, params=params or {})
+        r.raise_for_status()
+        return r.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"[tools→Django] {e.response.status_code} on GET {url}: {e.response.text[:200]}")
+        return _auth_error_payload(e)
+    except Exception as e:
+        logger.error(f"[tools→Django] error on GET {url}: {e}")
+        return {"error": str(e)}
 
 
 async def _list_organizations(headers, tenant_type=None, is_active=None, search=None, **_) -> dict:

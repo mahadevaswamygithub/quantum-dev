@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Lock, Building2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import AuthBackground from '../components/AuthBackground';
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -69,7 +70,7 @@ const Register = () => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+      <AuthBackground>
         <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-8 text-center">
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Registration Successful!</h2>
@@ -78,12 +79,12 @@ const Register = () => {
           </p>
           <p className="text-sm text-slate-500 dark:text-slate-500">Redirecting to login page...</p>
         </div>
-      </div>
+      </AuthBackground>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+    <AuthBackground>
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
@@ -286,7 +287,7 @@ const Register = () => {
           </div>
         </div>
       </div>
-    </div>
+    </AuthBackground>
   );
 };
 

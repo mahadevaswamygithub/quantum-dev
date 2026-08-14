@@ -3,13 +3,14 @@ import { API_BASE_URL } from './httpClient';
 import { tokenStorage } from './tokenStorage';
 
 export const chatAPI = {
-  async streamMessage(message, sessionId) {
+  async streamMessage(message, sessionId, signal) {
     const validSessionId = sessionId || uuidv4();
     const token = tokenStorage.get('accessToken');
     return fetch(`${API_BASE_URL}/chat/stream/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
       body: JSON.stringify({ message, session_id: validSessionId }),
+      signal,
     });
   },
   async getHistory(sessionId) {

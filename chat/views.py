@@ -31,6 +31,13 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 ORCHESTRATOR_URL = getattr(settings, "LLM_ORCHESTRATOR_URL", "http://localhost:8002")
 
+# One pooled client for the process lifetime instead of opening a fresh
+# connection to the orchestrator on every single chat action (send/stream/
+# history/delete) — they all talk to the same host, so there's no reason
+# to pay TCP setup cost each time. httpx.Client is safe to reuse across
+# requests/threads.
+_orchestrator_client = httpx.Client(timeout=180.0)
+
 
 # ── Shared base ───────────────────────────────────────────────────────────────
 
@@ -69,11 +76,11 @@ class ChatSessionViewSet(ChatBase, viewsets.ModelViewSet):
         session = self.get_object()
         # Best-effort: clear orchestrator memory too
         try:
-            with httpx.Client(timeout=5.0) as client:
-                client.delete(
-                    f"{ORCHESTRATOR_URL}/chat/sessions/{session.id}",
-                    headers=self._headers(request),
-                )
+            _orchestrator_client.delete(
+                f"{ORCHESTRATOR_URL}/chat/sessions/{session.id}",
+                headers=self._headers(request),
+                timeout=5.0,
+            )
         except Exception:
             pass
         session.delete()
@@ -84,13 +91,13 @@ class ChatSessionViewSet(ChatBase, viewsets.ModelViewSet):
         """GET /api/chat/sessions/<id>/history/"""
         session = self.get_object()
         try:
-            with httpx.Client(timeout=10.0) as client:
-                resp = client.get(
-                    f"{ORCHESTRATOR_URL}/chat/sessions/{session.id}/history",
-                    headers=self._headers(request),
-                )
-                resp.raise_for_status()
-                return Response(resp.json())
+            resp = _orchestrator_client.get(
+                f"{ORCHESTRATOR_URL}/chat/sessions/{session.id}/history",
+                headers=self._headers(request),
+                timeout=10.0,
+            )
+            resp.raise_for_status()
+            return Response(resp.json())
         except Exception as e:
             logger.warning(f"Orchestrator history unavailable: {e}")
             msgs = ChatMessage.objects.filter(session=session)
@@ -140,14 +147,14 @@ class ChatSendView(ChatBase, APIView):
         )
 
         try:
-            with httpx.Client(timeout=120.0) as client:
-                resp = client.post(
-                    f"{ORCHESTRATOR_URL}/chat/message",
-                    json={"message": message, "session_id": session_id},
-                    headers=self._headers(request),
-                )
-                resp.raise_for_status()
-                data = resp.json()
+            resp = _orchestrator_client.post(
+                f"{ORCHESTRATOR_URL}/chat/message",
+                json={"message": message, "session_id": session_id},
+                headers=self._headers(request),
+                timeout=120.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
             text = data.get("response", "")
             ChatMessage.objects.create(session=session, role=ChatMessage.ROLE_USER, content=message)
@@ -196,26 +203,26 @@ class ChatStreamView(ChatBase, APIView):
         def event_stream():
             tokens = []
             try:
-                with httpx.Client(timeout=180.0) as client:
-                    with client.stream(
-                        "POST",
-                        f"{ORCHESTRATOR_URL}/chat/stream",
-                        json={"message": message, "session_id": session_id},
-                        headers=headers,
-                    ) as resp:
-                        resp.raise_for_status()
-                        for chunk in resp.iter_text():
-                            if chunk:
-                                yield chunk
-                                # collect tokens for DB save
-                                for line in chunk.split("\n"):
-                                    if line.startswith("data: "):
-                                        try:
-                                            ev = json.loads(line[6:])
-                                            if ev.get("type") == "token":
-                                                tokens.append(ev.get("content", ""))
-                                        except Exception:
-                                            pass
+                with _orchestrator_client.stream(
+                    "POST",
+                    f"{ORCHESTRATOR_URL}/chat/stream",
+                    json={"message": message, "session_id": session_id},
+                    headers=headers,
+                    timeout=180.0,
+                ) as resp:
+                    resp.raise_for_status()
+                    for chunk in resp.iter_text():
+                        if chunk:
+                            yield chunk
+                            # collect tokens for DB save
+                            for line in chunk.split("\n"):
+                                if line.startswith("data: "):
+                                    try:
+                                        ev = json.loads(line[6:])
+                                        if ev.get("type") == "token":
+                                            tokens.append(ev.get("content", ""))
+                                    except Exception:
+                                        pass
             except httpx.HTTPStatusError as e:
                 logger.error(f"Orchestrator stream error: {e.response.status_code}")
                 yield f"data: {json.dumps({'type': 'error', 'message': 'AI service error'})}\n\n"

@@ -11,12 +11,13 @@ Flow:
 import logging
 from typing import Annotated, TypedDict
 
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
+from agent.tool_call_recovery import recover_fake_tool_call
 from llm.factory import get_llm
 from memory.redis_checkpointer import get_checkpointer
 
@@ -64,7 +65,34 @@ def build_graph(tools: list[BaseTool]):
         if not messages or not isinstance(messages[0], SystemMessage):
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + list(messages)
 
-        response = await llm_with_tools.ainvoke(messages)
+        # `.astream()` here (not `.ainvoke()`) is what makes real token
+        # streaming happen — LangChain's astream_events only emits
+        # per-token `on_chat_model_stream` events when the model is
+        # actually invoked in streaming mode. A plain `.ainvoke()` call
+        # only ever yields a single `on_chat_model_end` with the full
+        # response, so runner.py's astream_events consumer never sees any
+        # tokens and falls back to slicing the finished text into fake
+        # "chunks" client-side — which is why responses were rendering all
+        # at once instead of streaming in. AIMessageChunk supports `+` to
+        # accumulate into the final message (including merged tool_calls).
+        response = None
+        async for chunk in llm_with_tools.astream(messages):
+            response = chunk if response is None else response + chunk
+
+        # Small/local models sometimes don't use real structured tool-
+        # calling and instead write a tool-call-shaped JSON fragment as
+        # plain content (e.g. `{"name": "get_current_user_summary", }`).
+        # Recover it into a real tool call so it still actually runs and
+        # produces a correct answer, instead of the graph ending on that
+        # garbled text as if it were the final response. runner.py
+        # separately makes sure the garbled text itself is never shown to
+        # the user (see tool_call_recovery.py's docstring).
+        if not getattr(response, "tool_calls", None):
+            recovered = recover_fake_tool_call(response.content, {t.name for t in tools})
+            if recovered:
+                logger.warning(f"Recovered malformed tool-call text as a real call: {recovered['name']}")
+                response = AIMessage(content="", tool_calls=[recovered])
+
         logger.info(
             f"LLM response — tool_calls: {len(getattr(response, 'tool_calls', []))}, "
             f"content_length: {len(str(response.content))}"

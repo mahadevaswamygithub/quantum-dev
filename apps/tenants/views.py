@@ -106,7 +106,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         ).first()
         if not org:
             return Response({'error': 'Not found or not accepting bookings.'}, status=status.HTTP_404_NOT_FOUND)
-        return Response({'id': org.id, 'name': org.name, 'org_type': org.org_type})
+        logo = request.build_absolute_uri(org.logo.url) if org.logo else None
+        return Response({'id': org.id, 'name': org.name, 'org_type': org.org_type, 'logo': logo})
 
     @action(detail=False, methods=['get'], url_path='public_list')
     def public_list(self, request):
@@ -118,8 +119,23 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         that are actually open for booking."""
         orgs = Organization.objects.filter(
             tenant_type='STP', org_type='ROOM_BOOKING', is_active=True,
-        ).order_by('name').values('id', 'name', 'org_type')
-        return Response(list(orgs))
+        ).order_by('name')
+        return Response([
+            {
+                'id': o.id, 'name': o.name, 'org_type': o.org_type,
+                'logo': request.build_absolute_uri(o.logo.url) if o.logo else None,
+            }
+            for o in orgs
+        ])
+
+    @action(detail=True, methods=['post'], url_path='upload_logo')
+    def upload_logo(self, request, pk=None):
+        org = self.get_object()
+        if 'file' not in request.FILES:
+            return Response({'error': 'No file provided'}, status=status.HTTP_400_BAD_REQUEST)
+        org.logo = request.FILES['file']
+        org.save()
+        return Response(OrganizationSerializer(org, context={'request': request}).data)
 
     @action(detail=True, methods=['post'], url_path='toggle_status')
     def toggle_status(self, request, pk=None):

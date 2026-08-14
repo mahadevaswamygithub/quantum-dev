@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
+import Avatar from '../components/common/Avatar';
 import { useAuth } from '../context/AuthContext';
 import { userAPI, tenantAPI, attendanceAPI, salaryAPI, leaveAPI } from '../services/api';
 import {
@@ -43,19 +44,21 @@ const Badge = ({ label, color = 'blue' }) => {
 };
 
 // ── Profile Tab ───────────────────────────────────────────────────────────────
-const ProfileTab = ({ userData, onEditPhoto }) => (
+const ProfileTab = ({ userData, onEditPhoto, uploadingPhoto }) => (
   <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
     {/* Avatar card */}
     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6 text-center">
       <div className="relative inline-block mb-4">
-        <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-500 to-blue-500 flex items-center justify-center text-3xl font-bold text-white mx-auto overflow-hidden">
-          {userData.profile_picture
-            ? <img src={userData.profile_picture} alt="Profile" className="w-full h-full object-cover" />
-            : `${userData.first_name?.[0] || ''}${userData.last_name?.[0] || ''}`}
-        </div>
+        <Avatar
+          src={userData.profile_picture}
+          initials={`${userData.first_name?.[0] || ''}${userData.last_name?.[0] || ''}`}
+          className="w-24 h-24 rounded-full text-3xl mx-auto"
+        />
         <button
           onClick={onEditPhoto}
-          className="absolute bottom-0 right-0 w-7 h-7 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-all"
+          disabled={uploadingPhoto}
+          title="Change photo"
+          className="absolute bottom-0 right-0 w-7 h-7 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-all disabled:opacity-50"
         >
           <Camera className="w-3.5 h-3.5 text-white" />
         </button>
@@ -544,13 +547,31 @@ const DocumentsTab = ({ userId }) => {
 const UserDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, updateUser: updateCurrentUser } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState(null);
   const [allOrgs, setAllOrgs] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const photoInputRef = useRef(null);
+
+  const handlePhotoChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file later
+    if (!file) return;
+    setUploadingPhoto(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await userAPI.uploadProfilePicture(id, fd);
+      setUserData(data);
+      // Keep the navbar/session avatar in sync when editing your own photo.
+      if (String(currentUser.id) === String(id)) updateCurrentUser({ profile_picture: data.profile_picture });
+    } catch { alert('Failed to upload photo'); }
+    finally { setUploadingPhoto(false); }
+  };
 
   const isMSP = currentUser.role === 'MSP_ADMIN' || currentUser.role === 'MSP_USER';
   const basePath = isMSP ? '/msp' : '/stp';
@@ -580,12 +601,12 @@ const UserDetail = () => {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
-      <div className="flex">
+      <div className="flex flex-1 min-h-0">
         <Sidebar userRole={currentUser.role} tenants={allOrgs} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-auto">
+        <div className="flex-1 p-6 overflow-y-auto min-h-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-5">
             <button onClick={() => navigate(`${basePath}/users`)} className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1 transition-colors">
@@ -616,8 +637,17 @@ const UserDetail = () => {
             })}
           </div>
 
+          {/* Hidden input backing the avatar's camera button */}
+          <input ref={photoInputRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+
           {/* Tab Content */}
-          {activeTab === 'profile' && <ProfileTab userData={userData} onEditPhoto={() => {}} />}
+          {activeTab === 'profile' && (
+            <ProfileTab
+              userData={userData}
+              onEditPhoto={() => photoInputRef.current?.click()}
+              uploadingPhoto={uploadingPhoto}
+            />
+          )}
           {activeTab === 'attendance' && <AttendanceTab userId={id} />}
           {activeTab === 'salary' && <SalaryTab userId={id} isAdminView={true} />}
           {activeTab === 'leaves' && <LeavesTab userId={id} isAdminView={true} />}

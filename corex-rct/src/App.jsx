@@ -24,6 +24,7 @@ import UserDetail from './pages/UserDetail';
 import OrganizationsList from './pages/OrganizationsList';
 import OrganizationDetail from './pages/OrganizationDetail';
 import Settings from './pages/Settings';
+import MyProfile from './pages/MyProfile';
 import ActivityLog from './pages/ActivityLog';
 import PropertiesList from './pages/PropertiesList';
 import RoomsList from './pages/RoomsList';
@@ -83,6 +84,11 @@ const AppRoutes = () => {
       <Route path="/book/:orgId/properties/:propertyId" element={<CustomerPrivateRoute><RoomBrowse /></CustomerPrivateRoute>} />
       <Route path="/book/:orgId/properties/:propertyId/rooms/:roomId" element={<CustomerPrivateRoute><RoomDetail /></CustomerPrivateRoute>} />
       <Route path="/book/:orgId/my-bookings" element={<CustomerPrivateRoute><MyBookings /></CustomerPrivateRoute>} />
+
+      {/* ── Shared: personal profile page (Navbar only, no Sidebar — distinct
+           from the admin Settings page, which is org-management and STP/MSP
+           don't share). Employee has its own equivalent at /employee/profile. */}
+      <Route path="/profile" element={<PrivateRoute allowedRoles={[...MSP_ROLES, ...STP_ROLES]}><MyProfile /></PrivateRoute>} />
 
       {/* ── MSP ── */}
       <Route path="/msp" element={<PrivateRoute allowedRoles={MSP_ROLES}><MSPDashboard /></PrivateRoute>} />

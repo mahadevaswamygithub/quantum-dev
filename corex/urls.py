@@ -6,6 +6,8 @@ apps/users/urls.py exposed here: auth + user CRUD + salary settings only —
 attendance/salary-records/salary-advances/leaves were never wired into this
 urlconf and stay that way.
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -42,3 +44,6 @@ urlpatterns = [
         path('tenants/', include('apps.tenants.urls')),
     ])),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -29,7 +29,7 @@ const BulkActions = ({
         <div className="flex items-center gap-2">
           <button
             onClick={onActivate}
-            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
           >
             <Check className="w-4 h-4" />
             Activate
@@ -37,7 +37,7 @@ const BulkActions = ({
 
           <button
             onClick={onDeactivate}
-            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
           >
             <X className="w-4 h-4" />
             Deactivate
@@ -46,7 +46,7 @@ const BulkActions = ({
           {showRoleChange && (
             <button
               onClick={onChangeRole}
-              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
             >
               <Shield className="w-4 h-4" />
               Change Role
@@ -55,7 +55,7 @@ const BulkActions = ({
 
           <button
             onClick={onDelete}
-            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-semibold"
           >
             <Trash2 className="w-4 h-4" />
             Delete
@@ -63,7 +63,7 @@ const BulkActions = ({
 
           <button
             onClick={onClearSelection}
-            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-white rounded-lg transition-colors"
+            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-white rounded-lg transition-colors text-sm font-semibold"
           >
             Clear
           </button>

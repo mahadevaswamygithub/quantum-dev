@@ -20,7 +20,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'id', 'name', 'schema_name', 'tenant_type', 'org_type', 'is_active',
+            'id', 'name', 'logo', 'schema_name', 'tenant_type', 'org_type', 'is_active',
             'parent_organization', 'parent_name', 'domains', 'latitude', 'longitude',
             'user_count', 'created_on', 'updated_on',
         ]
@@ -42,7 +42,7 @@ class OrganizationDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = [
-            'id', 'schema_name', 'name', 'tenant_type', 'org_type',
+            'id', 'schema_name', 'name', 'logo', 'tenant_type', 'org_type',
             'parent_organization', 'parent_name', 'is_active', 'latitude', 'longitude',
             'created_on', 'updated_on', 'domains', 'users', 'stats'
         ]

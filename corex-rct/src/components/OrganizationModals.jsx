@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, Camera, Building2 } from 'lucide-react';
 import { tenantAPI } from '../services/api';
 import Modal from './common/Modal';
 import { ORG_TYPES } from '../constants/orgTypes';
 import LocationField from './LocationField';
+import Avatar from './common/Avatar';
 
 const emptyOrgForm = (parentOrgId) => ({
   name: '', tenant_type: 'STP', org_type: '', parent_organization_id: parentOrgId || null,
@@ -125,18 +126,42 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
   const [form, setForm] = useState({ name: '', is_active: true, org_type: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [logo, setLogo] = useState(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef(null);
 
   useEffect(() => {
-    if (organization) setForm({
-      name: organization.name || '',
-      is_active: organization.is_active !== undefined ? organization.is_active : true,
-      org_type: organization.org_type || '',
-      latitude: organization.latitude ?? '',
-      longitude: organization.longitude ?? '',
-    });
+    if (organization) {
+      setForm({
+        name: organization.name || '',
+        is_active: organization.is_active !== undefined ? organization.is_active : true,
+        org_type: organization.org_type || '',
+        latitude: organization.latitude ?? '',
+        longitude: organization.longitude ?? '',
+      });
+      setLogo(organization.logo || null);
+    }
   }, [organization]);
 
   if (!isOpen || !organization) return null;
+
+  // Uploads immediately (like the profile-picture camera button elsewhere)
+  // rather than waiting on the form's Save — a logo isn't a form field the
+  // update endpoint accepts, it's its own multipart upload_logo action.
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingLogo(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      const { data } = await tenantAPI.uploadLogo(organization.id, fd);
+      setLogo(data.logo);
+      onSuccess();
+    } catch { alert('Failed to upload logo'); }
+    finally { setUploadingLogo(false); }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -164,6 +189,22 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
     <Modal isOpen={isOpen} onClose={onClose} title="Edit Organization">
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm">{error}</div>}
+
+        <div className="flex items-center gap-3">
+          <Avatar src={logo} icon={Building2} className="w-14 h-14 rounded-xl" bg="bg-slate-100 dark:bg-slate-700" textClass="text-slate-400" />
+          <div>
+            <button
+              type="button"
+              onClick={() => logoInputRef.current?.click()}
+              disabled={uploadingLogo}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-medium rounded-lg transition-all disabled:opacity-50"
+            >
+              <Camera className="w-3.5 h-3.5" /> {uploadingLogo ? 'Uploading...' : logo ? 'Change Logo' : 'Upload Logo'}
+            </button>
+            <input ref={logoInputRef} type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
+          </div>
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Organization Name</label>
           <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required

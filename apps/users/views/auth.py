@@ -76,7 +76,7 @@ class LoginView(APIView):
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
-            'user': UserSerializer(user).data,
+            'user': UserSerializer(user, context={'request': request}).data,
         })
 
 
@@ -124,7 +124,7 @@ class ImpersonationExchangeView(APIView):
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),
-            'user': UserSerializer(user).data,
+            'user': UserSerializer(user, context={'request': request}).data,
         })
 
 

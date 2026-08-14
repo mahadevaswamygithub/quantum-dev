@@ -39,6 +39,9 @@ class UserSerializer(serializers.ModelSerializer):
     # extra API call. Not a field on User itself; it's read from
     # organization.org_type (apps.tenants.models.Organization).
     org_type = serializers.SerializerMethodField()
+    # The user's own organization's logo — lets the navbar show org branding
+    # straight off the login/`me` response, same reasoning as org_type above.
+    organization_logo = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -46,7 +49,7 @@ class UserSerializer(serializers.ModelSerializer):
             'id', 'username', 'email', 'first_name', 'last_name',
             'role', 'phone', 'date_of_birth', 'address', 'employee_id',
             'profile_picture', 'daily_rate', 'is_active', 'is_auto_generated',
-            'organization', 'organization_id', 'organization_name', 'org_type',
+            'organization', 'organization_id', 'organization_name', 'org_type', 'organization_logo',
             'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -59,6 +62,13 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_org_type(self, obj):
         return obj.organization.org_type if obj.organization else None
+
+    def get_organization_logo(self, obj):
+        if not obj.organization or not obj.organization.logo:
+            return None
+        request = self.context.get('request')
+        url = obj.organization.logo.url
+        return request.build_absolute_uri(url) if request else url
 
 
 class UserCreateSerializer(serializers.ModelSerializer):

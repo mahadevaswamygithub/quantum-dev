@@ -21,7 +21,15 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
   const { user } = useAuth();
   const isRoomBookingOrg = user?.org_type === 'ROOM_BOOKING';
 
-  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
+  // Dashboard's `to` is basePath itself (e.g. "/msp"), which is a path
+  // prefix of every other nav item ("/msp/organizations", "/msp/users", …).
+  // A plain startsWith would light up Dashboard on every one of those
+  // pages too, so basePath only matches exactly; every other item still
+  // matches its own sub-routes (e.g. "/msp/users/5" keeps Users active).
+  const isActive = (path) =>
+    path === basePath
+      ? location.pathname === path
+      : location.pathname === path || location.pathname.startsWith(path + '/');
   const isMSP = userRole === 'MSP_ADMIN' || userRole === 'MSP_USER';
   const isSTP = userRole === 'STP_ADMIN' || userRole === 'STP_USER';
   const isEmployee = userRole === 'EMPLOYEE';
@@ -37,7 +45,7 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
     </div>
   );
 
-  const NavItem = ({ to, icon: Icon, label, badge }) => {
+  const NavItem = ({ to, icon: Icon, label }) => {
     const active = isActive(to);
     return (
       <button
@@ -54,11 +62,6 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
         )}
         <Icon className="w-[18px] h-[18px] flex-shrink-0" />
         {!collapsed && <span className="truncate text-sm font-medium">{label}</span>}
-        {!collapsed && badge !== undefined && (
-          <span className="ml-auto rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-300">
-            {badge}
-          </span>
-        )}
         {collapsed && <Tooltip label={label} />}
       </button>
     );
@@ -66,7 +69,7 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
 
   return (
     <div
-      className={`flex h-[calc(100vh-64px)] flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800 ${
+      className={`flex h-full flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800 ${
         collapsed ? 'w-16' : 'w-64'
       }`}
     >
@@ -89,12 +92,12 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
 
         {/* MSP: Organizations */}
         {isMSP && (
-          <NavItem to={`${basePath}/organizations`} icon={Building2} label="Organizations" badge={tenants.length} />
+          <NavItem to={`${basePath}/organizations`} icon={Building2} label="Organizations" />
         )}
 
         {/* Users (MSP + STP) */}
         {!isEmployee && (
-          <NavItem to={`${basePath}/users`} icon={Users} label="Users" badge={users.length} />
+          <NavItem to={`${basePath}/users`} icon={Users} label="Users" />
         )}
 
         {/* Activity Log (MSP/STP admins only) */}
