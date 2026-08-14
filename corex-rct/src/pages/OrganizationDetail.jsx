@@ -8,9 +8,10 @@ import { tenantAPI, userAPI } from '../services/api';
 import {
   Building2, Users, ArrowLeft, Calendar, CheckCircle,
   Shield, UserCircle, Plus, Edit, Trash2, ToggleLeft, ToggleRight,
-  Eye, ChevronRight
+  Eye, ChevronRight, LogIn
 } from 'lucide-react';
 import { AddUserModal, EditUserModal, DeleteUserModal } from '../components/UserModals';
+import { orgTypeLabel } from '../constants/orgTypes';
 
 const OrganizationDetail = () => {
   const { id } = useParams();
@@ -56,6 +57,13 @@ const OrganizationDetail = () => {
   const handleToggleUser = async (userId) => {
     try { await userAPI.toggleUserStatus(userId); await fetchData(); }
     catch (err) { alert(err.response?.data?.error || 'Failed'); }
+  };
+
+  const handleImpersonate = async () => {
+    try {
+      const { data } = await tenantAPI.impersonateOrganization(id);
+      window.open(`/impersonate/${data.code}`, '_blank');
+    } catch (err) { alert(err.response?.data?.error || 'Failed to start impersonation'); }
   };
 
   const confirmDeleteUser = async () => {
@@ -111,17 +119,31 @@ const OrganizationDetail = () => {
                   <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                     org.is_active ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'
                   }`}>{org.is_active ? 'Active' : 'Inactive'}</span>
+                  {org.org_type && (
+                    <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                      {orgTypeLabel(org.org_type)}
+                    </span>
+                  )}
                   {org.parent_name && (
                     <span className="text-xs text-slate-500 dark:text-slate-400">Parent: <span className="text-slate-600 dark:text-slate-300">{org.parent_name}</span></span>
                   )}
                 </div>
               </div>
-              <div className="text-right text-sm text-slate-500 dark:text-slate-400">
-                <div className="flex items-center gap-1 justify-end">
+              <div className="text-right">
+                <div className="flex items-center gap-1 justify-end text-sm text-slate-500 dark:text-slate-400">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>{new Date(org.created_on).toLocaleDateString()}</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">{org.schema_name}</p>
+                {org.tenant_type === 'STP' && (
+                  <button
+                    onClick={handleImpersonate}
+                    className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 text-xs font-medium rounded-lg hover:bg-purple-500/20 dark:hover:bg-purple-500/30 transition-all"
+                    title="Opens this organization's dashboard in a new tab, logged in as its admin"
+                  >
+                    <LogIn className="w-3.5 h-3.5" /> Impersonate Admin
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -232,8 +254,8 @@ const OrganizationDetail = () => {
         </div>
       </div>
 
-      <AddUserModal isOpen={showAddUser} onClose={() => setShowAddUser(false)} onSuccess={fetchData} organizations={allOrgs} currentOrgId={parseInt(id)} />
-      <EditUserModal isOpen={showEditUser} onClose={() => { setShowEditUser(false); setSelectedUser(null); }} onSuccess={fetchData} user={selectedUser} organizations={allOrgs} />
+      <AddUserModal isOpen={showAddUser} onClose={() => setShowAddUser(false)} onSuccess={fetchData} organizations={allOrgs} currentOrgId={parseInt(id)} currentOrgType={org?.tenant_type} />
+      <EditUserModal isOpen={showEditUser} onClose={() => { setShowEditUser(false); setSelectedUser(null); }} onSuccess={fetchData} user={selectedUser} organizations={allOrgs} currentOrgType={org?.tenant_type} />
       <DeleteUserModal isOpen={showDeleteUser} onClose={() => { setShowDeleteUser(false); setSelectedUser(null); }} onConfirm={confirmDeleteUser} user={selectedUser} loading={deleteLoading} />
     </div>
   );

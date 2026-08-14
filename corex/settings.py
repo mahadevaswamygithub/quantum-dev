@@ -31,6 +31,13 @@ DEBUG = True
 ALLOWED_HOSTS = ['.ngrok-free.dev', 'localhost', '127.0.0.1']
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
+
+# Razorpay (apps.bookings payment flow) — get TEST-mode keys from
+# https://dashboard.razorpay.com/app/keys after enabling test mode.
+# Left blank by default; views.py returns a clean 503 rather than crashing
+# when these aren't configured.
+RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
+RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 # Application definition
 
@@ -49,6 +56,8 @@ SHARED_APPS = [
     'apps.core',
     'apps.tenants',
     'apps.users',
+    'apps.activity',
+    'apps.bookings',
     'chat'
 ]
 

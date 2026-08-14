@@ -7,7 +7,7 @@ import {
   Search, UserPlus, Edit, Trash2, ToggleLeft, ToggleRight,
   Download, FileText, Shield
 } from 'lucide-react';
-import { AddUserModal, EditUserModal, DeleteUserModal } from '../components/UserModals';
+import { AddUserModal, EditUserModal, DeleteUserModal, ROLE_OPTIONS } from '../components/UserModals';
 import BulkActions from '../components/BulkActions';
 import AdvancedFilters from '../components/AdvancedFilters';
 
@@ -438,6 +438,7 @@ const UsersList = () => {
         onSuccess={fetchData}
         organizations={tenants}
         currentOrgId={user.organization_id}
+        currentOrgType={user.role.startsWith('MSP') ? 'MSP' : 'STP'}
       />
 
       <EditUserModal
@@ -449,6 +450,7 @@ const UsersList = () => {
         onSuccess={fetchData}
         user={selectedUser}
         organizations={tenants}
+        currentOrgType={user.role.startsWith('MSP') ? 'MSP' : 'STP'}
       />
 
       <DeleteUserModal
@@ -469,6 +471,7 @@ const UsersList = () => {
           onClose={() => setShowRoleModal(false)}
           onConfirm={handleRoleChange}
           selectedCount={selectedUsers.length}
+          currentOrgType={user.role.startsWith('MSP') ? 'MSP' : 'STP'}
         />
       )}
     </div>
@@ -476,8 +479,12 @@ const UsersList = () => {
 };
 
 // Role Change Modal Component
-const RoleChangeModal = ({ isOpen, onClose, onConfirm, selectedCount }) => {
-  const [newRole, setNewRole] = useState('STP_USER');
+const RoleChangeModal = ({ isOpen, onClose, onConfirm, selectedCount, currentOrgType = 'STP' }) => {
+  // Bulk role changes only offer roles that fit the acting admin's own
+  // scope (an STP admin's selection is always STP-org users) — the same
+  // MSP/STP mismatch guard as Add/Edit User, see UserModals.jsx.
+  const roleOptions = ROLE_OPTIONS[currentOrgType] || ROLE_OPTIONS.STP;
+  const [newRole, setNewRole] = useState(roleOptions[0].value);
 
   if (!isOpen) return null;
 
@@ -495,10 +502,7 @@ const RoleChangeModal = ({ isOpen, onClose, onConfirm, selectedCount }) => {
             onChange={(e) => setNewRole(e.target.value)}
             className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 mb-6"
           >
-            <option value="STP_USER">STP User</option>
-            <option value="STP_ADMIN">STP Admin</option>
-            <option value="MSP_USER">MSP User</option>
-            <option value="MSP_ADMIN">MSP Admin</option>
+            {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
 
           <div className="flex gap-3">

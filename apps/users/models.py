@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
@@ -9,6 +11,10 @@ class User(AbstractUser):
         ('STP_ADMIN', 'STP Admin'),
         ('STP_USER', 'STP User'),
         ('EMPLOYEE', 'Employee'),
+        # Self-registered end customer of a ROOM_BOOKING-type STP org (see
+        # apps.bookings) — never assignable from the staff Add/Edit User
+        # forms, only created via the customer self-registration endpoint.
+        ('CUSTOMER', 'Customer'),
     ]
 
     email = models.EmailField(unique=True)
@@ -301,7 +307,30 @@ class LeaveBalance(models.Model):
     class Meta:
         db_table = 'leave_balances'
         unique_together = ('user', 'leave_type', 'year')
- 
+
     def __str__(self):
         return f"{self.user.get_full_name()} — {self.leave_type} {self.year}"
+
+
+class ImpersonationToken(models.Model):
+    """Single-use, short-lived handoff for MSP-admin-initiated impersonation.
+
+    Minted server-side by OrganizationViewSet.impersonate() and immediately
+    consumed by ImpersonationExchangeView in a fresh browser tab — the actual
+    JWT is never placed in a URL, only this opaque one-time code is.
+    """
+    code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
+    target_user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    initiated_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='+')
+    organization = models.ForeignKey('tenants.Organization', on_delete=models.CASCADE, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'impersonation_tokens'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.initiated_by.get_full_name()} → {self.target_user.get_full_name()} ({self.organization.name})"
  

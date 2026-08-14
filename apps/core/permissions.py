@@ -17,7 +17,9 @@ def get_visible_organization_ids(user, include_own_org=True):
         their own org when `include_own_org` is True (default). Pass
         include_own_org=False for call sites that only want the managed
         sub-orgs (e.g. an "organizations I administer" list).
-      - STP_ADMIN / STP_USER → their own org only
+      - STP_ADMIN / STP_USER / CUSTOMER → their own org only (a CUSTOMER is
+        a self-registered end user of one specific ROOM_BOOKING STP org,
+        see apps.bookings — same single-org scoping as STP staff)
       - anything else (e.g. EMPLOYEE, or no org) → None, meaning "this role
         isn't org-scoped the same way; caller decides what to do" (e.g.
         scope to the user themself, or return nothing)
@@ -27,7 +29,7 @@ def get_visible_organization_ids(user, include_own_org=True):
     if user.role in ('MSP_ADMIN', 'MSP_USER'):
         sub_ids = list(user.organization.sub_organizations.values_list('id', flat=True))
         return ([user.organization_id] + sub_ids) if include_own_org else sub_ids
-    if user.role in ('STP_ADMIN', 'STP_USER'):
+    if user.role in ('STP_ADMIN', 'STP_USER', 'CUSTOMER'):
         return [user.organization_id]
     return None
 

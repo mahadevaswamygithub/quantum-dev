@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { tokenStorage } from './tokenStorage';
 
 export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
@@ -9,7 +10,7 @@ const api = axios.create({
 
 // ── Interceptors ──────────────────────────────────────────────────────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = tokenStorage.get('accessToken');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 }, Promise.reject);
@@ -21,13 +22,13 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && !orig._retry) {
       orig._retry = true;
       try {
-        const refresh = localStorage.getItem('refreshToken');
+        const refresh = tokenStorage.get('refreshToken');
         const res = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, { refresh });
-        localStorage.setItem('accessToken', res.data.access);
+        tokenStorage.setAccessToken(res.data.access);
         orig.headers.Authorization = `Bearer ${res.data.access}`;
         return api(orig);
       } catch {
-        ['accessToken', 'refreshToken', 'user'].forEach(k => localStorage.removeItem(k));
+        tokenStorage.clear();
         window.location.href = '/login';
       }
     }

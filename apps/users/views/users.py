@@ -5,10 +5,12 @@ import io
 from django.http import HttpResponse
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.core.permissions import OrganizationScopedQuerysetMixin
+from apps.activity.utils import log_activity, diff_fields
 from ..models import User, UserDocument
 from ..serializers import (
     UserCreateSerializer,
@@ -16,6 +18,18 @@ from ..serializers import (
     UserSerializer,
     UserUpdateSerializer,
 )
+# Not re-exported via ..serializers (it's a private helper, not a serializer)
+# — same MSP/STP role-vs-org-type guard used by UserCreateSerializer /
+# UserUpdateSerializer, reused here since these two actions bypass those
+# serializers entirely and would otherwise skip the check.
+from ..serializers.users import _check_role_matches_org_type
+
+# Fields worth recording on a User UPDATE — matches UserUpdateSerializer.Meta.fields.
+_USER_TRACKED_FIELDS = [
+    'first_name', 'last_name', 'email', 'role',
+    'phone', 'date_of_birth', 'address', 'employee_id',
+    'daily_rate', 'is_active', 'organization_id',
+]
 
 
 class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
@@ -49,8 +63,25 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         serializer = UserCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.save()
+            log_activity(request, 'CREATE', obj=user, organization=user.organization)
             return Response(UserSerializer(user, context={'request': request}).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        # Self-profile edits (the `me` action) go through this same
+        # serializer but not this hook — `me` calls serializer.save()
+        # directly rather than routing through the viewset's update(), so
+        # it's intentionally not logged here to avoid noise from routine
+        # profile edits.
+        changes = diff_fields(instance, serializer.validated_data, _USER_TRACKED_FIELDS)
+        user = serializer.save()
+        if changes:
+            log_activity(self.request, 'UPDATE', obj=user, organization=user.organization, changes=changes)
+
+    def perform_destroy(self, instance):
+        log_activity(self.request, 'DELETE', obj=instance, organization=instance.organization)
+        instance.delete()
 
     @action(detail=False, methods=['get', 'put'], url_path='me')
     def me(self, request):
@@ -65,8 +96,10 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='toggle_active')
     def toggle_active(self, request, pk=None):
         user = self.get_object()
+        was_active = user.is_active
         user.is_active = not user.is_active
         user.save()
+        log_activity(request, 'UPDATE', obj=user, organization=user.organization, changes={'is_active': [str(was_active), str(user.is_active)]})
         return Response({'is_active': user.is_active, 'message': f"User {'activated' if user.is_active else 'deactivated'}"})
 
     @action(detail=True, methods=['put'], url_path='change_role')
@@ -75,8 +108,15 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         role = request.data.get('role')
         if role not in dict(User.ROLE_CHOICES):
             return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            _check_role_matches_org_type(role, user.organization)
+        except DRFValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
+        old_role = user.role
         user.role = role
         user.save()
+        if old_role != role:
+            log_activity(request, 'UPDATE', obj=user, organization=user.organization, changes={'role': [old_role, role]})
         return Response({'role': user.role})
 
     @action(detail=True, methods=['post'], url_path='upload_picture')
@@ -119,18 +159,27 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['post'], url_path='bulk_activate')
     def bulk_activate(self, request):
         ids = request.data.get('user_ids', [])
+        users = list(User.objects.filter(id__in=ids).select_related('organization'))
         User.objects.filter(id__in=ids).update(is_active=True)
+        for u in users:
+            log_activity(request, 'UPDATE', obj=u, organization=u.organization, changes={'is_active': ['False', 'True']})
         return Response({'message': f'{len(ids)} users activated'})
 
     @action(detail=False, methods=['post'], url_path='bulk_deactivate')
     def bulk_deactivate(self, request):
         ids = request.data.get('user_ids', [])
+        users = list(User.objects.filter(id__in=ids).select_related('organization'))
         User.objects.filter(id__in=ids).update(is_active=False)
+        for u in users:
+            log_activity(request, 'UPDATE', obj=u, organization=u.organization, changes={'is_active': ['True', 'False']})
         return Response({'message': f'{len(ids)} users deactivated'})
 
     @action(detail=False, methods=['post'], url_path='bulk_delete')
     def bulk_delete(self, request):
         ids = request.data.get('user_ids', [])
+        users = list(User.objects.filter(id__in=ids).select_related('organization'))
+        for u in users:
+            log_activity(request, 'DELETE', obj=u, organization=u.organization)
         User.objects.filter(id__in=ids).delete()
         return Response({'message': f'{len(ids)} users deleted'})
 
@@ -140,7 +189,19 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         role = request.data.get('role')
         if role not in dict(User.ROLE_CHOICES):
             return Response({'error': 'Invalid role'}, status=status.HTTP_400_BAD_REQUEST)
+        # Selected users can belong to different orgs, so the role/org-type
+        # guard has to run per-user rather than once for the whole batch —
+        # reject the whole request if any single one would end up mismatched.
+        users = list(User.objects.filter(id__in=ids).select_related('organization'))
+        for u in users:
+            try:
+                _check_role_matches_org_type(role, u.organization)
+            except DRFValidationError as exc:
+                return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
         User.objects.filter(id__in=ids).update(role=role)
+        for u in users:
+            if u.role != role:
+                log_activity(request, 'UPDATE', obj=u, organization=u.organization, changes={'role': [u.role, role]})
         return Response({'message': f'{len(ids)} users role updated to {role}'})
 
     # ── Export ────────────────────────────────────────────────────────────────

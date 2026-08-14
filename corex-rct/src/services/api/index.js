@@ -11,3 +11,5 @@ export { attendanceAPI } from './attendanceApi';
 export { salaryAPI } from './salaryApi';
 export { leaveAPI } from './leaveApi';
 export { chatAPI } from './chatApi';
+export { activityAPI } from './activityApi';
+export { bookingAPI } from './bookingApi';

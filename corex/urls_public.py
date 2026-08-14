@@ -11,6 +11,8 @@ apps/tenants/urls.py); this file only wires prefixes to them.
   /api/salary/...     → salary settings, records, advances
   /api/leaves/...     → leave requests, balances, types
   /api/tenants/...    → organization management
+  /api/activity/...   → activity log (record CRUD + login/logout audit trail)
+  /api/bookings/...   → room-booking vertical (rooms, reservations, customer sign-up)
 """
 
 from django.contrib import admin
@@ -27,5 +29,7 @@ urlpatterns = [
         path("salary/",      include("apps.users.urls.payroll")),
         path("leaves/",      include("apps.users.urls.leaves")),
         path("tenants/",     include("apps.tenants.urls")),
+        path("activity/",    include("apps.activity.urls")),
+        path("bookings/",    include("apps.bookings.urls")),
     ])),
 ]

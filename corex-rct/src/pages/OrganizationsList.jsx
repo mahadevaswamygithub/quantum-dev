@@ -7,9 +7,10 @@ import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI } from '../services/api';
 import {
   Building2, Search, Plus, Edit, Trash2, ToggleLeft, ToggleRight,
-  ArrowRight, Users, ChevronRight, LayoutGrid, List
+  ArrowRight, Users, ChevronRight, LayoutGrid, List, LogIn, Eye
 } from 'lucide-react';
 import { AddOrganizationModal, EditOrganizationModal, DeleteOrganizationModal } from '../components/OrganizationModals';
+import { orgTypeLabel } from '../constants/orgTypes';
 
 const OrganizationsList = () => {
   const { user } = useAuth();
@@ -60,6 +61,14 @@ const OrganizationsList = () => {
     catch (err) { alert(err.response?.data?.error || 'Failed'); }
   };
 
+  const handleImpersonate = async (id, e) => {
+    e.stopPropagation();
+    try {
+      const { data } = await tenantAPI.impersonateOrganization(id);
+      window.open(`/impersonate/${data.code}`, '_blank');
+    } catch (err) { alert(err.response?.data?.error || 'Failed to start impersonation'); }
+  };
+
   const confirmDelete = async () => {
     if (!selectedOrg) return;
     setDeleteLoading(true);
@@ -82,7 +91,6 @@ const OrganizationsList = () => {
           userRole={user.role}
           tenants={organizations}
           users={allUsers}
-          onAddTenant={() => setShowAddModal(true)}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
@@ -152,6 +160,22 @@ const OrganizationsList = () => {
                   {/* Action buttons - top right */}
                   <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      onClick={e => { e.stopPropagation(); navigate(`${basePath}/organizations/${org.id}`); }}
+                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4 text-green-400" />
+                    </button>
+                    {org.tenant_type === 'STP' && (
+                      <button
+                        onClick={e => handleImpersonate(org.id, e)}
+                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                        title="Impersonate admin (opens in a new tab)"
+                      >
+                        <LogIn className="w-4 h-4 text-purple-400" />
+                      </button>
+                    )}
+                    <button
                       onClick={e => handleToggle(org.id, e)}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title={org.is_active ? 'Deactivate' : 'Activate'}
@@ -201,6 +225,11 @@ const OrganizationsList = () => {
                       }`}>
                         {org.tenant_type}
                       </span>
+                      {org.org_type && (
+                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                          {orgTypeLabel(org.org_type)}
+                        </span>
+                      )}
                       <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                         org.is_active ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-red-500/20 text-red-600 dark:text-red-400'
                       }`}>
@@ -258,9 +287,16 @@ const OrganizationsList = () => {
                           </button>
                         </td>
                         <td className="px-5 py-4">
-                          <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                            org.tenant_type === 'MSP' ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                          }`}>{org.tenant_type}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                              org.tenant_type === 'MSP' ? 'bg-green-500/20 text-green-600 dark:text-green-400' : 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                            }`}>{org.tenant_type}</span>
+                            {org.org_type && (
+                              <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                {orgTypeLabel(org.org_type)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-5 py-4 text-slate-500 dark:text-slate-400 text-sm">{org.user_count || 0}</td>
                         <td className="px-5 py-4">
@@ -270,6 +306,11 @@ const OrganizationsList = () => {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-1">
+                            {org.tenant_type === 'STP' && (
+                              <button onClick={e => handleImpersonate(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Impersonate admin (opens in a new tab)">
+                                <LogIn className="w-4 h-4 text-purple-400" />
+                              </button>
+                            )}
                             <button onClick={e => handleToggle(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={org.is_active ? 'Deactivate' : 'Activate'}>
                               {org.is_active ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
                             </button>
@@ -279,7 +320,7 @@ const OrganizationsList = () => {
                             <button onClick={() => { setSelectedOrg(org); setShowDeleteModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
                               <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
-                            <button onClick={() => navigate(`${basePath}/organizations/${org.id}`)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="View Users">
+                            <button onClick={() => navigate(`${basePath}/organizations/${org.id}`)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="View Details">
                               <ArrowRight className="w-4 h-4 text-green-400" />
                             </button>
                           </div>

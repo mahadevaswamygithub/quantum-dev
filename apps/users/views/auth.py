@@ -9,11 +9,13 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 
-from ..models import User
+from ..models import User, ImpersonationToken
 from ..serializers import UserRegistrationSerializer, UserSerializer
+from apps.activity.utils import log_activity
 
 
 class RefreshTokenView(TokenRefreshView):
@@ -68,6 +70,57 @@ class LoginView(APIView):
             return Response({'error': 'Account is deactivated'}, status=status.HTTP_403_FORBIDDEN)
 
         refresh = RefreshToken.for_user(user)
+        # actor=user passed explicitly — request.user is still AnonymousUser
+        # at this point (login hasn't attached anything to the request).
+        log_activity(request, 'LOGIN', actor=user, organization=user.organization)
+        return Response({
+            'access': str(refresh.access_token),
+            'refresh': str(refresh),
+            'user': UserSerializer(user).data,
+        })
+
+
+class LogoutView(APIView):
+    """
+    JWTs are stateless here (no blacklist app installed) so this endpoint
+    doesn't actually invalidate anything — its only job is to record the
+    LOGOUT activity event before the frontend clears its tokens. Called by
+    authAPI.logout() right before tokenStorage.clear().
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        log_activity(request, 'LOGOUT', organization=request.user.organization)
+        return Response({'message': 'Logged out'})
+
+
+class ImpersonationExchangeView(APIView):
+    """Exchanges a single-use impersonation code (minted by
+    OrganizationViewSet.impersonate) for real JWTs. Called from a fresh
+    browser tab that has no session yet, so it's necessarily AllowAny —
+    safety comes from the code being unguessable, short-lived, and
+    consumed on first use, not from the caller being authenticated."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        code = request.data.get('code')
+        try:
+            token = ImpersonationToken.objects.get(code=code)
+        except (ImpersonationToken.DoesNotExist, ValueError, TypeError):
+            return Response({'error': 'This impersonation link is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if token.used_at or token.expires_at < timezone.now():
+            return Response({'error': 'This impersonation link has expired or was already used.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        token.used_at = timezone.now()
+        token.save(update_fields=['used_at'])
+
+        user = token.target_user
+        refresh = RefreshToken.for_user(user)
+        log_activity(
+            request, 'LOGIN', actor=user, organization=user.organization,
+            object_repr=f'Impersonated by {token.initiated_by.get_full_name()}',
+        )
         return Response({
             'access': str(refresh.access_token),
             'refresh': str(refresh),

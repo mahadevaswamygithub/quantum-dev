@@ -23,3 +23,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.pyc
+
+# python virtualenvs (backend root, orchestrator/, or anywhere else one gets created)
+venv/
+env/
+__pycache__/

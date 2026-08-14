@@ -1,0 +1,23 @@
+# Web framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+
+# HTTP client
+httpx
+
+# LangChain — pip resolves compatible versions automatically
+langchain
+langgraph
+langgraph-checkpoint-redis
+
+# LLM providers
+langchain-anthropic        # Claude
+langchain-openai           # GPT-4o
+langchain-google-genai     # Gemini
+langchain-ollama           # Ollama (local)
+
+# Redis client
+redis

@@ -11,14 +11,45 @@ const Field = ({ label, required, children }) => (
   </div>
 );
 
-export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], currentOrgId }) => {
-  const [form, setForm] = useState({ username: '', email: '', first_name: '', last_name: '', password: '', role: 'STP_USER', organization_id: currentOrgId || '' });
+// Which roles make sense depends on the target org's type — an MSP role in
+// an STP organization (or vice versa) isn't just wrong labeling, MSP routes
+// are gated by role alone (not re-checked against the org), so it's a real
+// privilege mismatch. The backend enforces this too (UserCreateSerializer /
+// UserUpdateSerializer) — this is the UX half, so the mismatch is never
+// even offered as an option.
+export const ROLE_OPTIONS = {
+  MSP: [
+    { value: 'MSP_USER', label: 'MSP User' },
+    { value: 'MSP_ADMIN', label: 'MSP Admin' },
+  ],
+  STP: [
+    { value: 'STP_USER', label: 'STP User' },
+    { value: 'STP_ADMIN', label: 'STP Admin' },
+    { value: 'EMPLOYEE', label: 'Employee' },
+  ],
+};
+
+/** tenant_type of whichever org is currently targeted — looks it up in the
+ * org list when selectable, else falls back to the modal's default org. */
+const targetOrgType = (orgId, organizations, fallbackType) =>
+  organizations.find(o => String(o.id) === String(orgId))?.tenant_type || fallbackType;
+
+export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], currentOrgId, currentOrgType = 'STP' }) => {
+  const emptyForm = () => {
+    const roleOptions = ROLE_OPTIONS[currentOrgType] || ROLE_OPTIONS.STP;
+    return { username: '', email: '', first_name: '', last_name: '', role: roleOptions[0].value, organization_id: currentOrgId || '' };
+  };
+  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isOpen) { setForm({ username: '', email: '', first_name: '', last_name: '', password: '', role: 'STP_USER', organization_id: currentOrgId || '' }); setError(''); }
-  }, [isOpen, currentOrgId]);
+    if (isOpen) { setForm(emptyForm()); setError(''); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, currentOrgId, currentOrgType]);
+
+  const orgType = targetOrgType(form.organization_id, organizations, currentOrgType);
+  const roleOptions = ROLE_OPTIONS[orgType] || ROLE_OPTIONS.STP;
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
@@ -27,35 +58,41 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
       await userAPI.createUser(form);
       onSuccess(); onClose();
     } catch (err) {
-      setError(err.response?.data?.email?.[0] || err.response?.data?.username?.[0] || err.response?.data?.error || 'Failed to create user');
+      setError(err.response?.data?.role?.[0] || err.response?.data?.email?.[0] || err.response?.data?.username?.[0] || err.response?.data?.error || 'Failed to invite user');
     } finally { setLoading(false); }
   };
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
+  const handleOrgChange = (e) => {
+    const newOrgId = e.target.value;
+    const newRoleOptions = ROLE_OPTIONS[targetOrgType(newOrgId, organizations, currentOrgType)] || ROLE_OPTIONS.STP;
+    setForm(f => ({
+      ...f,
+      organization_id: newOrgId,
+      role: newRoleOptions.some(r => r.value === f.role) ? f.role : newRoleOptions[0].value,
+    }));
+  };
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add New User" wide>
+    <Modal isOpen={isOpen} onClose={onClose} title="Invite User" wide>
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm">{error}</div>}
+        <p className="text-xs text-slate-500 dark:text-slate-500 -mt-1">They'll get an email with a link to set their own password.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Field label="Username" required><input type="text" value={form.username} onChange={set('username')} required placeholder="john_doe" className={inputCls} /></Field>
           <Field label="Email" required><input type="email" value={form.email} onChange={set('email')} required placeholder="john@example.com" className={inputCls} /></Field>
           <Field label="First Name" required><input type="text" value={form.first_name} onChange={set('first_name')} required placeholder="John" className={inputCls} /></Field>
           <Field label="Last Name" required><input type="text" value={form.last_name} onChange={set('last_name')} required placeholder="Doe" className={inputCls} /></Field>
-          <Field label="Password" required><input type="password" value={form.password} onChange={set('password')} required placeholder="••••••••" minLength={8} className={inputCls} /></Field>
           <Field label="Role" required>
             <select value={form.role} onChange={set('role')} className={inputCls}>
-              <option value="STP_USER">STP User</option>
-              <option value="STP_ADMIN">STP Admin</option>
-              <option value="MSP_USER">MSP User</option>
-              <option value="MSP_ADMIN">MSP Admin</option>
-              <option value="EMPLOYEE">Employee</option>
+              {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </Field>
           {organizations.length > 0 && (
             <div className="md:col-span-2">
               <Field label="Organization" required>
-                <select value={form.organization_id} onChange={set('organization_id')} required className={inputCls}>
+                <select value={form.organization_id} onChange={handleOrgChange} required className={inputCls}>
                   <option value="">Select Organization</option>
                   {organizations.map(o => <option key={o.id} value={o.id}>{o.name} ({o.tenant_type})</option>)}
                 </select>
@@ -66,7 +103,7 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white text-sm font-medium rounded-lg transition-all">Cancel</button>
           <button type="submit" disabled={loading} className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-            {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating...</> : 'Create User'}
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Sending invite...</> : 'Send Invite'}
           </button>
         </div>
       </form>
@@ -74,7 +111,7 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
   );
 };
 
-export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations = [] }) => {
+export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations = [], currentOrgType = 'STP' }) => {
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', role: '', organization_id: '', is_active: true });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -88,19 +125,32 @@ export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations 
 
   if (!isOpen || !user) return null;
 
+  const orgType = targetOrgType(form.organization_id, organizations, currentOrgType);
+  const roleOptions = ROLE_OPTIONS[orgType] || ROLE_OPTIONS.STP;
+
   const handleSubmit = async (e) => {
     e.preventDefault(); setError(''); setLoading(true);
     try {
       const { userAPI } = await import('../services/api');
       await userAPI.updateUser(user.id, form);
       onSuccess(); onClose();
-    } catch (err) { setError(err.response?.data?.error || 'Failed to update user'); }
+    } catch (err) { setError(err.response?.data?.role?.[0] || err.response?.data?.error || 'Failed to update user'); }
     finally { setLoading(false); }
   };
 
   const set = (k) => (e) => {
     const v = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setForm(f => ({ ...f, [k]: v }));
+  };
+
+  const handleOrgChange = (e) => {
+    const newOrgId = e.target.value;
+    const newRoleOptions = ROLE_OPTIONS[targetOrgType(newOrgId, organizations, currentOrgType)] || ROLE_OPTIONS.STP;
+    setForm(f => ({
+      ...f,
+      organization_id: newOrgId,
+      role: newRoleOptions.some(r => r.value === f.role) ? f.role : newRoleOptions[0].value,
+    }));
   };
 
   return (
@@ -113,17 +163,13 @@ export const EditUserModal = ({ isOpen, onClose, onSuccess, user, organizations 
           <Field label="Email" required><input type="email" value={form.email} onChange={set('email')} required className={inputCls} /></Field>
           <Field label="Role" required>
             <select value={form.role} onChange={set('role')} className={inputCls}>
-              <option value="STP_USER">STP User</option>
-              <option value="STP_ADMIN">STP Admin</option>
-              <option value="MSP_USER">MSP User</option>
-              <option value="MSP_ADMIN">MSP Admin</option>
-              <option value="EMPLOYEE">Employee</option>
+              {roleOptions.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </Field>
           {organizations.length > 0 && (
             <div className="md:col-span-2">
               <Field label="Organization">
-                <select value={form.organization_id} onChange={set('organization_id')} className={inputCls}>
+                <select value={form.organization_id} onChange={handleOrgChange} className={inputCls}>
                   <option value="">No Organization</option>
                   {organizations.map(o => <option key={o.id} value={o.id}>{o.name} ({o.tenant_type})</option>)}
                 </select>

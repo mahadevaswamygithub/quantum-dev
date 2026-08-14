@@ -7,6 +7,7 @@ import { tenantAPI, userAPI } from '../services/api';
 import { Building2, Users, TrendingUp, Plus, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AddOrganizationModal } from '../components/OrganizationModals';
+import WorldMap from '../components/WorldMap';
 
 const MSPDashboard = () => {
   const { user } = useAuth();
@@ -53,7 +54,6 @@ const MSPDashboard = () => {
           userRole={user.role}
           tenants={organizations}
           users={users}
-          onAddTenant={() => setShowAddModal(true)}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
@@ -82,6 +82,11 @@ const MSPDashboard = () => {
                 </div>
               );
             })}
+          </div>
+
+          {/* World map */}
+          <div className="mb-6">
+            <WorldMap organizations={organizations} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

@@ -8,9 +8,63 @@ fontLink.rel = "stylesheet";
 fontLink.href = "https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap";
 document.head.appendChild(fontLink);
 
-/* ─── Animations ─────────────────────────────────────────────────────────── */
+/* ─── Animations + theme tokens ──────────────────────────────────────────────
+   Colors are CSS custom properties, flipped by the SAME `dark` class
+   ThemeContext already toggles on <html> for the rest of the app — so this
+   widget follows the app's light/dark switch instead of always being dark. */
 const styleEl = document.createElement("style");
 styleEl.textContent = `
+  :root {
+    --cx-panel: #ffffff;
+    --cx-glass: rgba(0,0,0,.025);
+    --cx-border: rgba(0,0,0,.09);
+    --cx-accent: #2B6CB0;
+    --cx-purple: #805AD5;
+    --cx-green: #2F855A;
+    --cx-txt-pri: #1A202C;
+    --cx-txt-sec: rgba(26,32,44,.62);
+    --cx-txt-mut: rgba(26,32,44,.4);
+    --cx-scrollbar-thumb: rgba(0,0,0,.14);
+    --cx-scrollbar-thumb-hover: rgba(0,0,0,.22);
+    --cx-placeholder: rgba(26,32,44,.32);
+    --cx-icon-hover-bg: rgba(0,0,0,.05);
+    --cx-icon-hover-color: rgba(26,32,44,.8);
+    --cx-msg-bg: #F7F9FC;
+    --cx-msg-shadow: 0 2px 10px rgba(15,23,42,.08);
+    --cx-input-bg: #F7F9FC;
+    --cx-input-border-focus: rgba(43,108,176,.4);
+    --cx-send-idle-bg: rgba(0,0,0,.06);
+    --cx-panel-shadow: 0 24px 60px rgba(15,23,42,.18), 0 0 0 1px rgba(0,0,0,.04) inset;
+    --cx-code-bg: rgba(43,108,176,.1);
+    --cx-error-bg: rgba(220,38,38,.06);
+    --cx-error-border: rgba(220,38,38,.25);
+  }
+  html.dark {
+    --cx-panel: #161920;
+    --cx-glass: rgba(255,255,255,.03);
+    --cx-border: rgba(255,255,255,.07);
+    --cx-accent: #63B3ED;
+    --cx-purple: #B794F4;
+    --cx-green: #68D391;
+    --cx-txt-pri: #F0F4FF;
+    --cx-txt-sec: rgba(240,244,255,.55);
+    --cx-txt-mut: rgba(240,244,255,.28);
+    --cx-scrollbar-thumb: rgba(255,255,255,.08);
+    --cx-scrollbar-thumb-hover: rgba(255,255,255,.16);
+    --cx-placeholder: rgba(255,255,255,.28);
+    --cx-icon-hover-bg: rgba(255,255,255,.06);
+    --cx-icon-hover-color: rgba(240,244,255,.7);
+    --cx-msg-bg: rgba(255,255,255,.04);
+    --cx-msg-shadow: 0 2px 10px rgba(0,0,0,.2);
+    --cx-input-bg: rgba(255,255,255,.04);
+    --cx-input-border-focus: rgba(99,179,237,.35);
+    --cx-send-idle-bg: rgba(255,255,255,.06);
+    --cx-panel-shadow: 0 32px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.05) inset, 0 1px 0 rgba(255,255,255,.08) inset;
+    --cx-code-bg: rgba(99,179,237,.12);
+    --cx-error-bg: rgba(252,129,129,.07);
+    --cx-error-border: rgba(252,129,129,.2);
+  }
+
   @keyframes cxSlideUp    { from{opacity:0;transform:translateY(24px) scale(.97)} to{opacity:1;transform:translateY(0) scale(1)} }
   @keyframes cxFadeIn     { from{opacity:0} to{opacity:1} }
   @keyframes cxMsgIn      { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
@@ -32,29 +86,29 @@ styleEl.textContent = `
 
   .cx-scrollbar::-webkit-scrollbar       { width:4px }
   .cx-scrollbar::-webkit-scrollbar-track { background:transparent }
-  .cx-scrollbar::-webkit-scrollbar-thumb { background:rgba(255,255,255,.08);border-radius:99px }
-  .cx-scrollbar::-webkit-scrollbar-thumb:hover { background:rgba(255,255,255,.16) }
+  .cx-scrollbar::-webkit-scrollbar-thumb { background:var(--cx-scrollbar-thumb);border-radius:99px }
+  .cx-scrollbar::-webkit-scrollbar-thumb:hover { background:var(--cx-scrollbar-thumb-hover) }
 
   .cx-textarea:focus   { outline:none }
-  .cx-textarea::placeholder { color:rgba(255,255,255,.28) }
+  .cx-textarea::placeholder { color:var(--cx-placeholder) }
   .cx-btn-send:not(:disabled):hover  { transform:scale(1.07) }
   .cx-btn-send:not(:disabled):active { transform:scale(.95) }
   .cx-chip:hover { border-color:rgba(99,179,237,.45) !important; background:rgba(99,179,237,.06) !important }
-  .cx-icon-btn:hover { background:rgba(255,255,255,.06) !important; color:rgba(240,244,255,.7) !important }
+  .cx-icon-btn:hover { background:var(--cx-icon-hover-bg) !important; color:var(--cx-icon-hover-color) !important }
 `;
 document.head.appendChild(styleEl);
 
 /* ─── Tokens ─────────────────────────────────────────────────────────────── */
 const T = {
-  panel:    "#161920",
-  glass:    "rgba(255,255,255,.03)",
-  border:   "rgba(255,255,255,.07)",
-  accent:   "#63B3ED",
-  purple:   "#B794F4",
-  green:    "#68D391",
-  txtPri:   "#F0F4FF",
-  txtSec:   "rgba(240,244,255,.55)",
-  txtMut:   "rgba(240,244,255,.28)",
+  panel:    "var(--cx-panel)",
+  glass:    "var(--cx-glass)",
+  border:   "var(--cx-border)",
+  accent:   "var(--cx-accent)",
+  purple:   "var(--cx-purple)",
+  green:    "var(--cx-green)",
+  txtPri:   "var(--cx-txt-pri)",
+  txtSec:   "var(--cx-txt-sec)",
+  txtMut:   "var(--cx-txt-mut)",
   userBg:   "linear-gradient(135deg,#2B6CB0,#4C51BF)",
   fontH:    "'Syne',sans-serif",
   fontB:    "'DM Sans',sans-serif",
@@ -260,7 +314,7 @@ function Markdown({text,isUser}){
           </div>;
         const html=line
           .replace(/\*\*(.+?)\*\*/g,`<strong style="color:${color};font-weight:600">$1</strong>`)
-          .replace(/`(.+?)`/g,`<code style="background:rgba(99,179,237,.12);color:${T.accent};padding:1px 6px;border-radius:4px;font-size:11.5px;font-family:monospace">$1</code>`);
+          .replace(/`(.+?)`/g,`<code style="background:var(--cx-code-bg);color:${T.accent};padding:1px 6px;border-radius:4px;font-size:11.5px;font-family:monospace">$1</code>`);
         return <p key={i} style={{margin:"0 0 2px"}} dangerouslySetInnerHTML={{__html:html}}/>;
       })}
     </div>
@@ -328,10 +382,10 @@ function Bubble({msg,isLast}){
         maxWidth:"82%",padding:"11px 15px",borderRadius:16,
         borderBottomRightRadius:isUser?4:16,
         borderBottomLeftRadius: isUser?16:4,
-        background:isUser?T.userBg:msg.error?"rgba(252,129,129,.07)":"rgba(255,255,255,.04)",
-        border:isUser?"none":msg.error?"1px solid rgba(252,129,129,.2)":"1px solid rgba(255,255,255,.07)",
+        background:isUser?T.userBg:msg.error?"var(--cx-error-bg)":"var(--cx-msg-bg)",
+        border:isUser?"none":msg.error?"1px solid var(--cx-error-border)":"1px solid var(--cx-border)",
         backdropFilter:"blur(10px)",
-        boxShadow:isUser?"0 4px 20px rgba(43,108,176,.3)":"0 2px 10px rgba(0,0,0,.2)",
+        boxShadow:isUser?"0 4px 20px rgba(43,108,176,.3)":"var(--cx-msg-shadow)",
       }}>
         <Markdown text={msg.content} isUser={isUser}/>
         {msg.streaming&&isLast&&(
@@ -394,7 +448,7 @@ function EmptyState({onSelect}){
           <button key={text} className="cx-chip" onClick={()=>onSelect(text)} style={{
             padding:"10px 12px",textAlign:"left",cursor:"pointer",
             background:T.glass,
-            border:"1px solid rgba(255,255,255,.07)",
+            border:"1px solid var(--cx-border)",
             borderRadius:12,
             fontFamily:T.fontB,fontSize:12,color:T.txtSec,
             transition:"all .18s ease",
@@ -415,7 +469,7 @@ function Header({user,loading,hasMsgs,onClear,onClose}){
     <div style={{
       padding:"13px 14px",
       background:"linear-gradient(180deg,rgba(99,179,237,.05) 0%,transparent 100%)",
-      borderBottom:"1px solid rgba(255,255,255,.07)",
+      borderBottom:"1px solid var(--cx-border)",
       display:"flex",alignItems:"center",justifyContent:"space-between",
       flexShrink:0,
     }}>
@@ -499,13 +553,13 @@ function InputBar({value,onChange,onKeyDown,onSend,disabled,inputRef}){
   return (
     <div style={{
       padding:"11px 13px 13px",flexShrink:0,
-      borderTop:"1px solid rgba(255,255,255,.07)",
+      borderTop:"1px solid var(--cx-border)",
       background:"linear-gradient(0deg,rgba(99,179,237,.025) 0%,transparent 100%)",
     }}>
       <div style={{
         display:"flex",alignItems:"flex-end",gap:9,
-        background:"rgba(255,255,255,.04)",
-        border:`1px solid ${focused?"rgba(99,179,237,.35)":"rgba(255,255,255,.07)"}`,
+        background:"var(--cx-input-bg)",
+        border:`1px solid ${focused?"var(--cx-input-border-focus)":"var(--cx-border)"}`,
         borderRadius:14,padding:"9px 9px 9px 15px",
         transition:"border-color .2s,box-shadow .2s",
         boxShadow:focused?"0 0 0 3px rgba(99,179,237,.07)":"none",
@@ -530,14 +584,14 @@ function InputBar({value,onChange,onKeyDown,onSend,disabled,inputRef}){
             flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",
             background:value.trim()&&!disabled
               ?"linear-gradient(135deg,#3182CE,#6B46C1)"
-              :"rgba(255,255,255,.06)",
+              :"var(--cx-send-idle-bg)",
             color:value.trim()&&!disabled?"#fff":T.txtMut,
             transition:"all .2s",
             boxShadow:value.trim()&&!disabled?"0 4px 14px rgba(49,130,206,.35)":"none",
           }}
         >
           {disabled
-            ?<div className="cx-spin" style={{width:14,height:14,borderRadius:"50%",border:"2px solid rgba(255,255,255,.2)",borderTopColor:"#fff"}}/>
+            ?<div className="cx-spin" style={{width:14,height:14,borderRadius:"50%",border:"2px solid var(--cx-border)",borderTopColor:"var(--cx-accent)"}}/>
             :<svg width="15" height="15" viewBox="0 0 20 20" fill="none">
                <path d="M17.5 2.5L10 10M17.5 2.5L12 17.5L10 10L2.5 7.5L17.5 2.5Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
              </svg>
@@ -603,15 +657,11 @@ export default function ChatAssistant({sessionId:propSid,user}){
       position:"fixed",bottom:28,right:28,zIndex:9999,
       width:400,height:620,
       background:T.panel,
-      border:"1px solid rgba(255,255,255,.07)",
+      border:"1px solid var(--cx-border)",
       borderRadius:22,
       display:"flex",flexDirection:"column",overflow:"hidden",
       fontFamily:T.fontB,
-      boxShadow:`
-        0 32px 80px rgba(0,0,0,.55),
-        0 0 0 1px rgba(255,255,255,.05) inset,
-        0 1px 0 rgba(255,255,255,.08) inset
-      `,
+      boxShadow:"var(--cx-panel-shadow)",
     }}>
       {/* Top accent line */}
       <div style={{
@@ -638,7 +688,7 @@ export default function ChatAssistant({sessionId:propSid,user}){
         }
       </div>
 
-      <div style={{height:1,flexShrink:0,background:"linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)"}}/>
+      <div style={{height:1,flexShrink:0,background:"linear-gradient(90deg,transparent,var(--cx-border),transparent)"}}/>
 
       <InputBar
         value={input} onChange={e=>setInput(e.target.value)}

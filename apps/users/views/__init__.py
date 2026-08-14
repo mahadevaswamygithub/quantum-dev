@@ -7,6 +7,8 @@ from .auth import (
     RefreshTokenView,
     UserRegistrationView,
     LoginView,
+    LogoutView,
+    ImpersonationExchangeView,
     ForgotPasswordView,
     ResetPasswordView,
     ChangePasswordView,
@@ -25,7 +27,8 @@ from .leaves import (
 )
 
 __all__ = [
-    'RefreshTokenView', 'UserRegistrationView', 'LoginView',
+    'RefreshTokenView', 'UserRegistrationView', 'LoginView', 'LogoutView',
+    'ImpersonationExchangeView',
     'ForgotPasswordView', 'ResetPasswordView', 'ChangePasswordView',
     'UserViewSet',
     'AttendanceViewSet',

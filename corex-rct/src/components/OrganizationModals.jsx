@@ -2,14 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import { tenantAPI } from '../services/api';
 import Modal from './common/Modal';
+import { ORG_TYPES } from '../constants/orgTypes';
+import LocationField from './LocationField';
+
+const emptyOrgForm = (parentOrgId) => ({
+  name: '', tenant_type: 'STP', org_type: '', parent_organization_id: parentOrgId || null,
+  latitude: '', longitude: '',
+  admin_first_name: '', admin_last_name: '', admin_email: '',
+});
 
 export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }) => {
-  const [form, setForm] = useState({ name: '', domain_name: '', tenant_type: 'STP', parent_organization_id: parentOrgId || null });
+  const [form, setForm] = useState(emptyOrgForm(parentOrgId));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (isOpen) setForm({ name: '', domain_name: '', tenant_type: 'STP', parent_organization_id: parentOrgId || null });
+    if (isOpen) setForm(emptyOrgForm(parentOrgId));
   }, [isOpen, parentOrgId]);
 
   const handleSubmit = async (e) => {
@@ -19,11 +27,22 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
     try {
       const data = { ...form };
       if (parentOrgId) { data.parent_organization_id = parentOrgId; data.tenant_type = 'STP'; }
+      if (data.tenant_type === 'MSP') data.org_type = null;
+      data.latitude = data.latitude === '' ? null : data.latitude;
+      data.longitude = data.longitude === '' ? null : data.longitude;
       await tenantAPI.createTenant(data);
       onSuccess();
       onClose();
     } catch (err) {
-      setError(err.response?.data?.name?.[0] || err.response?.data?.domain_name?.[0] || err.response?.data?.error || 'Failed to create organization');
+      setError(
+        err.response?.data?.name?.[0] ||
+        err.response?.data?.org_type?.[0] ||
+        err.response?.data?.latitude?.[0] ||
+        err.response?.data?.longitude?.[0] ||
+        err.response?.data?.admin_email?.[0] ||
+        err.response?.data?.error ||
+        'Failed to create organization'
+      );
     } finally { setLoading(false); }
   };
 
@@ -37,23 +56,60 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
             className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
             placeholder="Acme Corporation" />
         </div>
-        <div>
-          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Domain Name *</label>
-          <input type="text" value={form.domain_name} onChange={e => setForm(f => ({ ...f, domain_name: e.target.value }))} required
-            className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="acme.corex.local" />
-          <p className="mt-1 text-xs text-slate-500">Used as subdomain for the organization</p>
-        </div>
         {!parentOrgId && (
           <div>
             <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Organization Type *</label>
-            <select value={form.tenant_type} onChange={e => setForm(f => ({ ...f, tenant_type: e.target.value }))}
+            <select value={form.tenant_type} onChange={e => setForm(f => ({ ...f, tenant_type: e.target.value, org_type: e.target.value === 'MSP' ? '' : f.org_type }))}
               className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
               <option value="STP">Single Tenant Portal (STP)</option>
               <option value="MSP">Multi-Service Provider (MSP)</option>
             </select>
           </div>
         )}
+        {form.tenant_type === 'STP' && (
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Business Type *</label>
+            <select value={form.org_type} onChange={e => setForm(f => ({ ...f, org_type: e.target.value }))} required
+              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+              <option value="" disabled>Select a business type…</option>
+              {ORG_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Determines what this organization's portal looks like.</p>
+          </div>
+        )}
+
+        <LocationField
+          latitude={form.latitude}
+          longitude={form.longitude}
+          onResolved={(lat, lng) => setForm(f => ({ ...f, latitude: lat, longitude: lng }))}
+          onClear={() => setForm(f => ({ ...f, latitude: '', longitude: '' }))}
+        />
+
+        <div className="pt-1 border-t border-slate-200 dark:border-slate-700">
+          <p className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Admin User</p>
+          <p className="text-xs text-slate-500 dark:text-slate-500 mb-3">A login will be created for this organization and emailed to the address below.</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Admin First Name *</label>
+            <input type="text" value={form.admin_first_name} onChange={e => setForm(f => ({ ...f, admin_first_name: e.target.value }))} required
+              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Jane" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Admin Last Name *</label>
+            <input type="text" value={form.admin_last_name} onChange={e => setForm(f => ({ ...f, admin_last_name: e.target.value }))} required
+              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+              placeholder="Doe" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Admin Email *</label>
+          <input type="email" value={form.admin_email} onChange={e => setForm(f => ({ ...f, admin_email: e.target.value }))} required
+            className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="admin@acme.com" />
+        </div>
+
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white text-sm font-medium rounded-lg transition-all">Cancel</button>
           <button type="submit" disabled={loading} className="flex-1 px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-semibold rounded-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2">
@@ -66,12 +122,18 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
 };
 
 export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization }) => {
-  const [form, setForm] = useState({ name: '', is_active: true });
+  const [form, setForm] = useState({ name: '', is_active: true, org_type: '', latitude: '', longitude: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (organization) setForm({ name: organization.name || '', is_active: organization.is_active !== undefined ? organization.is_active : true });
+    if (organization) setForm({
+      name: organization.name || '',
+      is_active: organization.is_active !== undefined ? organization.is_active : true,
+      org_type: organization.org_type || '',
+      latitude: organization.latitude ?? '',
+      longitude: organization.longitude ?? '',
+    });
   }, [organization]);
 
   if (!isOpen || !organization) return null;
@@ -81,11 +143,21 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
     setError('');
     setLoading(true);
     try {
-      await tenantAPI.updateTenant(organization.id, form);
+      const data = { ...form };
+      data.latitude = data.latitude === '' ? null : data.latitude;
+      data.longitude = data.longitude === '' ? null : data.longitude;
+      await tenantAPI.updateTenant(organization.id, data);
       onSuccess();
       onClose();
-    } catch (err) { setError(err.response?.data?.error || 'Failed to update'); }
-    finally { setLoading(false); }
+    } catch (err) {
+      setError(
+        err.response?.data?.org_type?.[0] ||
+        err.response?.data?.latitude?.[0] ||
+        err.response?.data?.longitude?.[0] ||
+        err.response?.data?.error ||
+        'Failed to update'
+      );
+    } finally { setLoading(false); }
   };
 
   return (
@@ -97,6 +169,22 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
           <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required
             className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
+        {organization.tenant_type === 'STP' && (
+          <div>
+            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Business Type</label>
+            <select value={form.org_type} onChange={e => setForm(f => ({ ...f, org_type: e.target.value }))}
+              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
+              <option value="" disabled>Select a business type…</option>
+              {ORG_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+        )}
+        <LocationField
+          latitude={form.latitude}
+          longitude={form.longitude}
+          onResolved={(lat, lng) => setForm(f => ({ ...f, latitude: lat, longitude: lng }))}
+          onClear={() => setForm(f => ({ ...f, latitude: '', longitude: '' }))}
+        />
         <label className="flex items-center gap-3 cursor-pointer">
           <input type="checkbox" checked={form.is_active} onChange={e => setForm(f => ({ ...f, is_active: e.target.checked }))}
             className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 bg-slate-100 dark:bg-slate-700 text-green-500 focus:ring-2 focus:ring-green-500" />

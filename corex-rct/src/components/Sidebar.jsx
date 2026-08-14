@@ -1,28 +1,34 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
-  Building2, Users, Home, Settings, ChevronDown, ChevronRight,
-  Plus, UserCircle, BarChart3, ChevronLeft, ChevronRightIcon,
+  Building2, Users, Home, Settings,
+  ChevronLeft, ChevronRightIcon,
   Briefcase, DollarSign, Clock, CalendarDays,
-  Shield
+  Shield, UserCircle, History, BedDouble, CalendarCheck
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
 const formatRole = (role = '') =>
   role.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 
-const Sidebar = ({ userRole, tenants = [], users = [], onAddTenant, collapsed, onToggleCollapse }) => {
-  const [expandedSections, setExpandedSections] = useState({ tenants: true, users: false });
+const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
-
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-  };
+  // Pulled from context rather than threaded in as a prop — Sidebar is
+  // only ever rendered inside an authenticated page (already inside
+  // AuthProvider), so this avoids touching every call site just to pass
+  // one more field needed solely for vertical-specific nav visibility.
+  const { user } = useAuth();
+  const isRoomBookingOrg = user?.org_type === 'ROOM_BOOKING';
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
   const isMSP = userRole === 'MSP_ADMIN' || userRole === 'MSP_USER';
   const isSTP = userRole === 'STP_ADMIN' || userRole === 'STP_USER';
   const isEmployee = userRole === 'EMPLOYEE';
+  // Activity log is an audit feature — same admin-only visibility the
+  // backend enforces (ActivityLogViewSet.get_queryset), so non-admins never
+  // see a nav link to a page that would just come back empty for them.
+  const isAdmin = userRole === 'MSP_ADMIN' || userRole === 'STP_ADMIN';
   const basePath = isMSP ? '/msp' : isSTP ? '/stp' : '/employee';
 
   const Tooltip = ({ label }) => (
@@ -58,38 +64,6 @@ const Sidebar = ({ userRole, tenants = [], users = [], onAddTenant, collapsed, o
     );
   };
 
-  const SectionHeader = ({ icon: Icon, label, sectionKey, count }) => (
-    <button
-      onClick={() => !collapsed && toggleSection(sectionKey)}
-      title={collapsed ? label : ''}
-      className="group relative flex w-full items-center justify-between rounded-lg px-4 py-2.5 text-slate-500 transition-all hover:bg-slate-100 hover:text-slate-700 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-white"
-    >
-      <div className="flex items-center gap-3">
-        <Icon className="w-[18px] h-[18px] flex-shrink-0" />
-        {!collapsed && <span className="text-sm font-medium">{label}</span>}
-      </div>
-      {!collapsed && (
-        <div className="flex items-center gap-1.5">
-          {count !== undefined && (
-            <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500 dark:bg-slate-700 dark:text-slate-400">{count}</span>
-          )}
-          {expandedSections[sectionKey]
-            ? <ChevronDown className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-            : <ChevronRight className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-          }
-        </div>
-      )}
-      {collapsed && <Tooltip label={count !== undefined ? `${label} (${count})` : label} />}
-    </button>
-  );
-
-  const subItemClass = (active) =>
-    `flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs transition-all ${
-      active
-        ? 'bg-slate-100 text-slate-900 dark:bg-slate-700 dark:text-white'
-        : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700/60 dark:hover:text-white'
-    }`;
-
   return (
     <div
       className={`flex h-[calc(100vh-64px)] flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800 ${
@@ -113,80 +87,28 @@ const Sidebar = ({ userRole, tenants = [], users = [], onAddTenant, collapsed, o
         {/* Dashboard */}
         <NavItem to={basePath} icon={Home} label="Dashboard" />
 
-        {/* ── MSP: Organizations ── */}
+        {/* MSP: Organizations */}
         {isMSP && (
-          <div>
-            <SectionHeader
-              icon={Building2}
-              label="Organizations"
-              sectionKey="tenants"
-              count={tenants.length}
-            />
-            {expandedSections.tenants && !collapsed && (
-              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-200 pl-2 dark:border-slate-700">
-                {onAddTenant && (
-                  <button
-                    onClick={onAddTenant}
-                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-xs text-green-600 transition-all hover:bg-green-50 dark:text-green-400 dark:hover:bg-slate-700/60"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add Organization</span>
-                  </button>
-                )}
-                <button
-                  onClick={() => navigate(`${basePath}/organizations`)}
-                  className={subItemClass(isActive(`${basePath}/organizations`))}
-                >
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  <span>View All ({tenants.length})</span>
-                </button>
-                {tenants.slice(0, 5).map((t) => (
-                  <button
-                    key={t.id}
-                    onClick={() => navigate(`${basePath}/organizations/${t.id}`)}
-                    className={subItemClass(isActive(`${basePath}/organizations/${t.id}`))}
-                  >
-                    <Building2 className="w-3.5 h-3.5" />
-                    <span className="truncate">{t.name}</span>
-                  </button>
-                ))}
-                {tenants.length > 5 && (
-                  <p className="px-3 py-1 text-xs text-slate-400 dark:text-slate-600">+{tenants.length - 5} more</p>
-                )}
-              </div>
-            )}
-          </div>
+          <NavItem to={`${basePath}/organizations`} icon={Building2} label="Organizations" badge={tenants.length} />
         )}
 
-        {/* ── Users Section ── */}
+        {/* Users (MSP + STP) */}
         {!isEmployee && (
-          <div>
-            <SectionHeader icon={Users} label="Users" sectionKey="users" count={users.length} />
-            {expandedSections.users && !collapsed && (
-              <div className="ml-4 mt-1 space-y-0.5 border-l border-slate-200 pl-2 dark:border-slate-700">
-                <button
-                  onClick={() => navigate(`${basePath}/users`)}
-                  className={subItemClass(isActive(`${basePath}/users`))}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>All Users ({users.length})</span>
-                </button>
-                {users.slice(0, 4).map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => navigate(`${basePath}/users/${u.id}`)}
-                    className={subItemClass(false)}
-                  >
-                    <UserCircle className="w-3.5 h-3.5" />
-                    <span className="truncate">{u.first_name} {u.last_name}</span>
-                  </button>
-                ))}
-                {users.length > 4 && (
-                  <p className="px-3 py-1 text-xs text-slate-400 dark:text-slate-600">+{users.length - 4} more</p>
-                )}
-              </div>
-            )}
-          </div>
+          <NavItem to={`${basePath}/users`} icon={Users} label="Users" badge={users.length} />
+        )}
+
+        {/* Activity Log (MSP/STP admins only) */}
+        {isAdmin && (
+          <NavItem to={`${basePath}/activity`} icon={History} label="Activity Log" />
+        )}
+
+        {/* Room Booking vertical — STP staff of a ROOM_BOOKING org only */}
+        {isSTP && isRoomBookingOrg && (
+          <>
+            <NavItem to={`${basePath}/properties`} icon={Building2} label="Properties" />
+            <NavItem to={`${basePath}/rooms`} icon={BedDouble} label="Rooms" />
+            <NavItem to={`${basePath}/bookings`} icon={CalendarCheck} label="Bookings" />
+          </>
         )}
 
         {/* ── Employee Portal Nav ── */}
