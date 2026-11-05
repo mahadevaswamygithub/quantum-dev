@@ -12,30 +12,47 @@ JSON fragment as plain text content, e.g.:
 no "arguments" key at all). Left alone, that garbled fragment streams
 straight to the user as if it were the actual answer.
 
-Two call sites need to agree on what this pattern looks like:
-  - runner.py   — must never forward it as visible token text.
-  - graph.py    — must convert it into a real tool call so the tool
-                  actually runs and a proper answer follows.
-This module is the one shared place that defines the pattern, so both
-stay in sync.
+Two garbled shapes are recognized:
+  - `{"name": "...", ...}` — an attempted (often malformed/truncated) tool
+    call written as plain text instead of real structured tool-calling.
+    Recoverable — see recover_fake_tool_call() below.
+  - `{}` — a bare empty object with no "name" at all. Not recoverable into
+    anything (there's no tool name to run), so this one just needs to never
+    reach the user as literal "{}" — graph.py swaps in a plain-text fallback
+    reply instead (see agent_node's use of classify_prefix()).
+
+Two call sites need to agree on what these patterns look like:
+  - runner.py   — must never forward either as visible token text.
+  - graph.py    — must convert the first into a real tool call so the tool
+                  actually runs, and replace the second with real reply text.
+This module is the one shared place that defines both, so both stay in sync.
 """
 
 import json
 import re
 import uuid
 
-# The fake pattern's opening, with insignificant JSON whitespace stripped
-# out for comparison — see classify_prefix().
+# The garbled shapes' openings, with insignificant JSON whitespace stripped
+# out for comparison — see classify_prefix(). `_EMPTY_OBJECT` doubles as its
+# own complete shape (an empty object is never itself a valid, useful reply).
 _TARGET = '{"name":"'
+_EMPTY_OBJECT = "{}"
 
 # Full match against the *complete* content — requires the name's closing
 # quote, used once we have the whole (possibly still malformed) fragment.
 _NAME_RE = re.compile(r'^\s*\{\s*"name"\s*:\s*"([a-zA-Z_][a-zA-Z0-9_]*)"')
 
 
+def _prefix_verdict(stripped: str, target: str) -> str:
+    n = min(len(stripped), len(target))
+    if stripped[:n] != target[:n]:
+        return "no"
+    return "match" if len(stripped) >= len(target) else "maybe"
+
+
 def classify_prefix(buf: str) -> str:
-    """Incrementally classifies a *streaming* prefix against the fake
-    tool-call opening, character by character, so a normal response can be
+    """Incrementally classifies a *streaming* prefix against the known
+    garbled-JSON shapes, character by character, so a normal response can be
     flushed to the user immediately instead of waiting for some fixed
     number of characters every single time (that flat-wait approach was
     the previous version of this module — it added real, noticeable delay
@@ -47,17 +64,20 @@ def classify_prefix(buf: str) -> str:
                 For a normal response this is almost always the verdict
                 on the very first character (`buf[0] != '{'`), so there's
                 no added latency for the overwhelming majority of replies.
-      "maybe" — still a possible prefix, need more characters before
-                deciding (bounded by len(_TARGET) — always resolves
-                within a handful of characters, never grows unbounded).
-      "match" — the opening is fully present; the run should be
-                suppressed.
+      "maybe" — still a possible prefix of *some* known shape, need more
+                characters before deciding (bounded by the longest target
+                — always resolves within a handful of characters, never
+                grows unbounded).
+      "match" — one of the known shapes is fully present; the run should
+                be suppressed.
     """
     stripped = re.sub(r"\s+", "", buf)
-    n = min(len(stripped), len(_TARGET))
-    if stripped[:n] != _TARGET[:n]:
-        return "no"
-    return "match" if len(stripped) >= len(_TARGET) else "maybe"
+    verdicts = [_prefix_verdict(stripped, t) for t in (_TARGET, _EMPTY_OBJECT)]
+    if "match" in verdicts:
+        return "match"
+    if "maybe" in verdicts:
+        return "maybe"
+    return "no"
 
 
 def recover_fake_tool_call(content: str, tool_names: set[str]) -> dict | None:

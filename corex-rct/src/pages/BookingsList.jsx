@@ -7,9 +7,10 @@ import Badge from '../components/common/Badge';
 import PriceTag from '../components/common/PriceTag';
 import EmptyState from '../components/common/EmptyState';
 import SearchFilterBar from '../components/common/SearchFilterBar';
+import BookingHistoryModal from '../components/BookingHistoryModal';
 import { useAuth } from '../context/AuthContext';
 import { bookingAPI, userAPI } from '../services/api';
-import { CalendarCheck, Check, LogIn, LogOut, Ban, RotateCcw } from 'lucide-react';
+import { CalendarCheck, Check, LogIn, LogOut, Ban, RotateCcw, History } from 'lucide-react';
 
 const STATUS_TONE = { PENDING: 'amber', CONFIRMED: 'blue', CHECKED_IN: 'green', CHECKED_OUT: 'slate', CANCELLED: 'red' };
 const STATUS_LABEL = { PENDING: 'Pending Payment', CONFIRMED: 'Confirmed', CHECKED_IN: 'Checked In', CHECKED_OUT: 'Checked Out', CANCELLED: 'Cancelled' };
@@ -22,6 +23,7 @@ const BookingsList = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [historyId, setHistoryId] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -125,6 +127,7 @@ const BookingsList = () => {
                               {b.payment_status === 'PAID' && (
                                 <button disabled={busy} onClick={() => window.confirm('Refund this payment and cancel the reservation?') && runAction(b.id, bookingAPI.refundBooking)} title="Refund" className="p-1.5 hover:bg-amber-500/10 text-amber-500 rounded-lg disabled:opacity-50"><RotateCcw className="w-4 h-4" /></button>
                               )}
+                              <button onClick={() => setHistoryId(b.id)} title="History" className="p-1.5 hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"><History className="w-4 h-4" /></button>
                             </div>
                           </td>
                         </tr>
@@ -137,6 +140,8 @@ const BookingsList = () => {
           </Card>
         </div>
       </div>
+
+      {historyId && <BookingHistoryModal bookingId={historyId} onClose={() => setHistoryId(null)} />}
     </div>
   );
 };

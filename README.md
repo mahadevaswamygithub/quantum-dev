@@ -30,6 +30,46 @@ gracefully (a friendly error in the chat widget) if it's not running.
 | Frontend | `corex-rct/` | 3000 | React (CRA) |
 | Orchestrator | `orchestrator/` | 8002 | FastAPI + LangGraph |
 
+## Docker
+
+The whole stack (Postgres, Redis, Django, Celery, orchestrator, React) can
+run in containers instead of the manual setup below.
+
+```bash
+docker compose up --build
+```
+
+- Backend: `http://localhost:8000`, Frontend: `http://localhost:3000`,
+  Orchestrator: `http://localhost:8002`.
+- Source is bind-mounted for all four custom services, so edits on your host
+  hot-reload inside the containers same as running them natively.
+- Reuses the same root `.env` / `orchestrator/.env` described below —
+  `DB_HOST`, `REDIS_URL`, `LLM_ORCHESTRATOR_URL`, `DJANGO_API_BASE_URL` etc.
+  are pointed at the Docker service names automatically; everything else
+  (email, Razorpay, LLM provider/keys) comes straight from those files.
+- The orchestrator's default `LLM_PROVIDER=ollama` expects Ollama running on
+  your **host** machine (`ollama serve`) — the container reaches it via
+  `host.docker.internal`. Switch to a hosted provider in `orchestrator/.env`
+  if you'd rather not run Ollama locally.
+- First run creates the Postgres schema automatically (`migrate_schemas`);
+  create your first tenant/superuser the same way you would without Docker,
+  just prefix with `docker compose exec backend`, e.g.
+  `docker compose exec backend python manage.py createsuperuser`.
+
+For a production-style build (gunicorn/uvicorn, no live-reload, nginx serving
+the compiled frontend, no source bind mounts):
+
+```bash
+cp .env.prod.example .env.prod                              # fill in real secrets
+cp orchestrator/.env.prod.example orchestrator/.env.prod     # fill in LLM provider/key
+docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d
+```
+
+Frontend then serves on `http://localhost` (port 80) and proxies `/api` and
+`/media` to the backend container itself, so no `REACT_APP_API_URL` juggling
+is needed. See the comments at the top of `docker-compose.prod.yml` for what
+else differs from the dev compose file.
+
 ## Prerequisites
 
 - Python 3.10

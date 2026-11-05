@@ -17,7 +17,7 @@ from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode, tools_condition
 
-from agent.tool_call_recovery import recover_fake_tool_call
+from agent.tool_call_recovery import classify_prefix, recover_fake_tool_call
 from llm.factory import get_llm
 from memory.redis_checkpointer import get_checkpointer
 
@@ -92,6 +92,16 @@ def build_graph(tools: list[BaseTool]):
             if recovered:
                 logger.warning(f"Recovered malformed tool-call text as a real call: {recovered['name']}")
                 response = AIMessage(content="", tool_calls=[recovered])
+            elif isinstance(response.content, str) and classify_prefix(response.content) == "match":
+                # Garbled-JSON-shaped but *not* recoverable into a tool call
+                # (e.g. a bare "{}" with no "name" — see tool_call_recovery.py).
+                # runner.py's streaming layer already suppressed it token-by-
+                # token, so without this the user gets a silent empty reply.
+                # Swap in real text instead — runner.py's on_chain_end
+                # fallback picks this up since it's plain prose, not
+                # JSON-shaped, so classify_prefix() there passes it through.
+                logger.warning(f"Discarding unrecoverable garbled response: {response.content!r}")
+                response = AIMessage(content="Sorry, I didn't quite catch that — could you rephrase?")
 
         logger.info(
             f"LLM response — tool_calls: {len(getattr(response, 'tool_calls', []))}, "

@@ -36,3 +36,7 @@ wcwidth==0.2.14
 Pillow
 httpx
 drf-nested-routers
+
+# Docker/production serving
+gunicorn
+whitenoise

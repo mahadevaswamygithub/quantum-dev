@@ -9,6 +9,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.core.permissions import OrganizationScopedQuerysetMixin
+from apps.activity.models import ActivityLog
+from apps.activity.serializers import ActivityLogSerializer
 from apps.activity.utils import log_activity
 from apps.users.serializers import UserSerializer
 from .models import Property, Room, RoomImage, Booking, Payment
@@ -208,6 +210,21 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
     def _staff_for(self, booking):
         user = self.request.user
         return user.role in STAFF_ROLES and user.organization_id == booking.organization_id
+
+    @action(detail=True, methods=['get'], url_path='history')
+    def history(self, request, pk=None):
+        """
+        Full timeline for this one booking — every ActivityLog row written
+        against it by log_activity() (made, paid/confirmed, checked in,
+        checked out, cancelled, refunded...), oldest first. get_object()
+        already scopes visibility the same as the rest of this viewset
+        (customer sees only their own booking, staff only their org's), so
+        unlike the admin-only ActivityLogViewSet, the booking's own
+        customer can read this too — it's their history, not an audit feed.
+        """
+        booking = self.get_object()
+        logs = ActivityLog.objects.filter(model_name='Booking', object_id=str(booking.id)).order_by('created_at')
+        return Response(ActivityLogSerializer(logs, many=True).data)
 
     @action(detail=True, methods=['post'], url_path='create_order')
     def create_order(self, request, pk=None):

@@ -6,11 +6,12 @@ import Badge from '../components/common/Badge';
 import PriceTag from '../components/common/PriceTag';
 import EmptyState from '../components/common/EmptyState';
 import PageSpinner from '../components/common/PageSpinner';
+import BookingHistoryModal from '../components/BookingHistoryModal';
 import { useAuth } from '../context/AuthContext';
 import { useOrgInfo } from '../hooks/useOrgInfo';
 import { bookingAPI } from '../services/api';
 import { loadRazorpayScript } from '../utils/razorpay';
-import { CalendarCheck, Loader2 } from 'lucide-react';
+import { CalendarCheck, History, Loader2 } from 'lucide-react';
 
 const STATUS_TONE = { PENDING: 'amber', CONFIRMED: 'blue', CHECKED_IN: 'green', CHECKED_OUT: 'slate', CANCELLED: 'red' };
 const STATUS_LABEL = { PENDING: 'Pending Payment', CONFIRMED: 'Confirmed', CHECKED_IN: 'Checked In', CHECKED_OUT: 'Checked Out', CANCELLED: 'Cancelled' };
@@ -23,6 +24,7 @@ const MyBookings = () => {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
+  const [historyId, setHistoryId] = useState(null);
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -102,7 +104,7 @@ const MyBookings = () => {
                   </p>
                   <PriceTag amount={b.total_amount} className="text-sm font-semibold text-slate-900 dark:text-white mt-1 inline-block" />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   {b.status === 'PENDING' && (
                     <button onClick={() => handlePayNow(b)} disabled={busy} className="px-3 py-1.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-xs font-semibold rounded-lg disabled:opacity-50 flex items-center gap-1.5">
                       {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Pay Now
@@ -111,12 +113,17 @@ const MyBookings = () => {
                   {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
                     <button onClick={() => handleCancel(b.id)} disabled={busy} className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 text-xs font-medium rounded-lg disabled:opacity-50">Cancel</button>
                   )}
+                  <button onClick={() => setHistoryId(b.id)} title="History" className="p-1.5 hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg">
+                    <History className="w-4 h-4" />
+                  </button>
                 </div>
               </Card>
             );
           })}
         </div>
       )}
+
+      {historyId && <BookingHistoryModal bookingId={historyId} onClose={() => setHistoryId(null)} />}
     </CustomerLayout>
   );
 };

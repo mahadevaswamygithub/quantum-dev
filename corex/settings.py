@@ -12,7 +12,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 from pathlib import Path
 import os
-from decouple import config
+from decouple import config, Csv
 from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -23,12 +23,29 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-nurvyn4j_m^)ljim_345g4^)b+4d@5jdoz4v#pv%ghxpbmbqr0'
+# Override with a real SECRET_KEY env var in production (see docker-compose.prod.yml).
+SECRET_KEY = config(
+    'SECRET_KEY',
+    default='django-insecure-nurvyn4j_m^)ljim_345g4^)b+4d@5jdoz4v#pv%ghxpbmbqr0',
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = ['.ngrok-free.dev', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = config(
+    'ALLOWED_HOSTS',
+    default='.ngrok-free.dev,localhost,127.0.0.1',
+    cast=Csv(),
+)
+# "backend" is the Docker Compose service name the orchestrator's
+# server-to-server tool calls hit (DJANGO_API_BASE_URL=http://backend:8000)
+# — always allow it regardless of how ALLOWED_HOSTS above is customized, so
+# nobody has to remember to add it in .env.prod. Not a meaningful attack
+# surface: it's only resolvable inside the compose network, and there's
+# already a Domain row (see bootstrap_public_tenant) routing it to the
+# public schema the same as localhost.
+if 'backend' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('backend')
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
@@ -73,6 +90,7 @@ MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -165,8 +183,10 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 
 
 # Celery Configuration
-CELERY_BROKER_URL = 'redis://localhost:6379/0'
-CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+# REDIS_URL is overridden to redis://redis:6379/0 inside Docker (see docker-compose.yml).
+REDIS_URL = config('REDIS_URL', default='redis://localhost:6379/0')
+CELERY_BROKER_URL = REDIS_URL
+CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
@@ -218,6 +238,20 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
+# Only used by `collectstatic` (production/Docker) — WhiteNoise serves from here.
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STORAGES = {
+    # Defining STORAGES at all (Django 5.1+) replaces the old
+    # DEFAULT_FILE_STORAGE/STATICFILES_STORAGE settings entirely — "default"
+    # must be listed explicitly or FileField/ImageField uploads (profile
+    # pictures, room images, documents) break with InvalidStorageError.
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
 
 # Media (user uploads — profile pictures, org logos, room images, documents).
 # MEDIA_ROOT = BASE_DIR so the existing upload_to paths (e.g. 'user_documents/',
@@ -254,4 +288,4 @@ LOGGING = {
 }
 
 
-LLM_ORCHESTRATOR_URL = "http://localhost:8002"
+LLM_ORCHESTRATOR_URL = config('LLM_ORCHESTRATOR_URL', default='http://localhost:8002')

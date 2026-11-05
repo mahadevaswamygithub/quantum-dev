@@ -40,4 +40,5 @@ export const bookingAPI = {
   checkInBooking: (id) => api.post(`/bookings/reservations/${id}/check_in/`),
   checkOutBooking: (id) => api.post(`/bookings/reservations/${id}/check_out/`),
   refundBooking: (id) => api.post(`/bookings/reservations/${id}/refund/`),
+  getBookingHistory: (id) => api.get(`/bookings/reservations/${id}/history/`),
 };

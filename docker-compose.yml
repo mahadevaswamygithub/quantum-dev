@@ -1,0 +1,155 @@
+# Local development stack — hot reload everywhere, source bind-mounted.
+#   docker compose up --build
+#
+# Services: Postgres, Redis, Django backend, Celery worker, FastAPI
+# orchestrator (AI chat), React (CRA) frontend.
+#
+# Config: the root .env (already used for `python manage.py runserver` per
+# README.md) is loaded into the backend/celery containers via env_file — only
+# DB_HOST/REDIS_URL/LLM_ORCHESTRATOR_URL are overridden below to point at
+# Docker service names instead of localhost. See .env.docker.example for the
+# full list of variables this file understands.
+#
+# For production, see docker-compose.prod.yml instead.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-corex_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-aEDq:c7y}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Not published to the host by default — a lot of dev machines already
+    # have Postgres running natively on 5432 (see Prerequisites below), which
+    # would conflict. backend/celery reach this over the Docker network as
+    # "db" regardless. Uncomment if you want e.g. `psql -h localhost` access
+    # to *this* container's Postgres instead:
+    # ports:
+    #   - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-corex_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+    # Same reasoning as db's ports above — often already running natively.
+    # ports:
+    #   - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      LLM_ORCHESTRATOR_URL: http://orchestrator:8002
+      DEBUG: "True"
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    command: celery -A corex worker -l info
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      SKIP_MIGRATE: "1" # backend already migrates; avoid a race between the two
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+      target: dev
+    restart: unless-stopped
+    env_file:
+      - ./orchestrator/.env
+    environment:
+      DJANGO_API_BASE_URL: http://backend:8000
+      # Only takes effect if orchestrator/.env also sets MEMORY_BACKEND=redis
+      # (default is "memory"/in-process — see orchestrator/README.md). Not
+      # forced on here: as of langgraph-checkpoint-redis 0.5.1 the redis
+      # backend fails its .setup() call and falls back to in-memory anyway
+      # (pre-existing bug in memory/redis_checkpointer.py, unrelated to Docker).
+      REDIS_URL: redis://redis:6379
+      # Ollama (the default LLM_PROVIDER) runs on your HOST machine, not in a
+      # container — host.docker.internal reaches it from inside Docker.
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./orchestrator:/app
+    ports:
+      - "8002:8002"
+    depends_on:
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./corex-rct
+      dockerfile: Dockerfile
+      target: dev
+    restart: unless-stopped
+    environment:
+      REACT_APP_API_URL: http://localhost:8000/api
+      # CRA's dev-server file watcher misses change events on Docker's
+      # bind-mounted filesystem without polling.
+      CHOKIDAR_USEPOLLING: "true"
+      WDS_SOCKET_PORT: "0"
+    volumes:
+      - ./corex-rct:/app
+      - frontend_node_modules:/app/node_modules
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    stdin_open: true
+
+volumes:
+  pgdata:
+  redisdata:
+  frontend_node_modules:

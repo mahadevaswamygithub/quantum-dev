@@ -1,0 +1,42 @@
+# syntax=docker/dockerfile:1
+#
+# React (CRA) frontend.
+#   dev  — `npm start` (webpack-dev-server), source bind-mounted, hot reload
+#   prod — `npm run build`, output served by nginx (see nginx.conf), which
+#          also reverse-proxies /api and /media to the backend container —
+#          so the SPA can call relative "/api" and needs no baked-in host.
+
+FROM node:20-alpine AS base
+WORKDIR /app
+
+# ────────────────────────────────────────────────────────────────────────
+FROM base AS dev
+COPY package.json package-lock.json ./
+# --legacy-peer-deps: react-simple-maps' peer range (react 16-18) predates the
+# repo's React 19 upgrade; the committed package-lock.json already reflects
+# that resolution, this just stops a from-scratch install re-checking it.
+RUN npm install --legacy-peer-deps
+# Source is bind-mounted over this in docker-compose.yml; COPY here just
+# keeps `docker build --target dev` usable standalone.
+COPY . .
+EXPOSE 3000
+CMD ["npm", "start"]
+
+# ────────────────────────────────────────────────────────────────────────
+FROM base AS build
+COPY package.json package-lock.json ./
+RUN npm ci --legacy-peer-deps
+COPY . .
+# Baked into the JS bundle at build time (CRA can't read env at runtime).
+# Defaults to a relative path so nginx.conf's /api proxy handles it — override
+# with --build-arg REACT_APP_API_URL=https://your-host/api for a standalone
+# frontend deploy that talks to a differently-hosted backend.
+ARG REACT_APP_API_URL=/api
+ENV REACT_APP_API_URL=${REACT_APP_API_URL}
+RUN npm run build
+
+FROM nginx:1.27-alpine AS prod
+COPY --from=build /app/build /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

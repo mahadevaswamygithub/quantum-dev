@@ -49,6 +49,8 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(
             email=validated_data['email'],
             username=validated_data['username'],  # or however you define it
+            first_name=validated_data.get('first_name', ''),
+            last_name=validated_data.get('last_name', ''),
             password=password,                    # do NOT hash manually
             organization=organization,
             role=admin_role

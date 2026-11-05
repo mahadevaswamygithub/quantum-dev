@@ -1,0 +1,33 @@
+# Keeps the backend build context small and secrets out of the image.
+# (COPY . . in the backend Dockerfile only needs apps/, chat/, corex/, manage.py,
+# requirements.txt, docker/ — everything below is noise or belongs to other services.)
+
+.git
+.gitignore
+.claude
+README.md
+
+# Other services' sources — each has its own Dockerfile + build context
+corex-rct/
+orchestrator/
+
+# Envs / venvs — never bake secrets or a host-specific venv into the image
+venv/
+env/
+.env
+.env.*
+!.env.*.example
+
+__pycache__/
+*.pyc
+*.pyo
+
+# Media/static — served from volumes at runtime, not baked in
+/staticfiles
+/profile_pictures
+/room_images
+/user_documents
+
+.dockerignore
+Dockerfile
+docker-compose*.yml
