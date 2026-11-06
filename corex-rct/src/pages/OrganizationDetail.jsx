@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { usePermissions } from '../hooks/usePermissions';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -15,6 +16,7 @@ import { AddUserModal, EditUserModal, DeleteUserModal } from '../components/User
 import { orgTypeLabel } from '../constants/orgTypes';
 
 const OrganizationDetail = () => {
+  const { can } = usePermissions();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -23,7 +25,6 @@ const OrganizationDetail = () => {
   const [org, setOrg] = useState(null);
   const [orgUsers, setOrgUsers] = useState([]);
   const [allOrgs, setAllOrgs] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -55,18 +56,16 @@ const OrganizationDetail = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [orgRes, usersRes, statsRes, allOrgsRes, allUsersRes] = await Promise.all([
+      const [orgRes, usersRes, statsRes, allOrgsRes] = await Promise.all([
         tenantAPI.getTenantById(id),
         tenantAPI.getTenantUsers(id),
         tenantAPI.getTenantStats(id),
         tenantAPI.getTenants(),
-        userAPI.getUsers(),
       ]);
       setOrg(orgRes.data);
       setOrgUsers(usersRes.data || []);
       setStats(statsRes.data);
       setAllOrgs(allOrgsRes.data || []);
-      setAllUsers(allUsersRes.data || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, [id]);
@@ -109,7 +108,7 @@ const OrganizationDetail = () => {
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
       <div className="flex flex-1 min-h-0">
-        <Sidebar userRole={user.role} tenants={allOrgs} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
+        <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
         <div className="flex-1 p-6 overflow-y-auto min-h-0">
           {/* Breadcrumb */}
@@ -133,6 +132,7 @@ const OrganizationDetail = () => {
                   textClass={org.tenant_type === 'MSP' ? 'text-green-600 dark:text-green-400' : 'text-purple-600 dark:text-purple-400'}
                 />
                 <button
+                  hidden={!can('organizations.manage')}
                   onClick={() => logoInputRef.current?.click()}
                   disabled={uploadingLogo}
                   title="Change logo"
@@ -169,6 +169,7 @@ const OrganizationDetail = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-500 mt-0.5">{org.schema_name}</p>
                 {org.tenant_type === 'STP' && (
                   <button
+                    hidden={!can('organizations.impersonate')}
                     onClick={handleImpersonate}
                     className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/10 text-purple-600 dark:bg-purple-500/20 dark:text-purple-400 text-xs font-medium rounded-lg hover:bg-purple-500/20 dark:hover:bg-purple-500/30 transition-all"
                     title="Opens this organization's dashboard in a new tab, logged in as its admin"
@@ -208,6 +209,7 @@ const OrganizationDetail = () => {
             <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <h2 className="font-semibold text-slate-900 dark:text-white">Users in {org.name}</h2>
               <button
+                hidden={!can('users.manage')}
                 onClick={() => setShowAddUser(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-all"
               >
@@ -265,13 +267,13 @@ const OrganizationDetail = () => {
                             <button onClick={() => navigate(`${basePath}/users/${u.id}`)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="View Details">
                               <Eye className="w-4 h-4 text-green-400" />
                             </button>
-                            <button onClick={() => handleToggleUser(u.id)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={u.is_active ? 'Deactivate' : 'Activate'}>
+                            <button hidden={!can('users.manage')} onClick={() => handleToggleUser(u.id)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={u.is_active ? 'Deactivate' : 'Activate'}>
                               {u.is_active ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
                             </button>
-                            <button onClick={() => { setSelectedUser(u); setShowEditUser(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
+                            <button hidden={!can('users.manage')} onClick={() => { setSelectedUser(u); setShowEditUser(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
                               <Edit className="w-4 h-4 text-blue-400" />
                             </button>
-                            <button onClick={() => { setSelectedUser(u); setShowDeleteUser(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
+                            <button hidden={!can('users.manage')} onClick={() => { setSelectedUser(u); setShowDeleteUser(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
                               <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
                           </div>

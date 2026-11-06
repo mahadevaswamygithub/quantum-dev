@@ -39,7 +39,7 @@ urlpatterns = [
             path('change-password/', ChangePasswordView.as_view(),   name='tenant-auth-change-password'),
             path('salary/settings/', SalarySettingsView.as_view({'get': 'list', 'put': 'create'}), name='tenant-salary-settings'),
             path('', include(router.urls)),
-            path('me/', UserViewSet.as_view({'get': 'me', 'put': 'me'}), name='tenant-user-me'),
+            path('me/', UserViewSet.as_view({'get': 'me', 'put': 'me', 'delete': 'me'}), name='tenant-user-me'),
         ])),
         path('tenants/', include('apps.tenants.urls')),
     ])),

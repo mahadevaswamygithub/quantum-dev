@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { authAPI } from '../services/api';
+import TwoFactorStep from '../components/auth/TwoFactorStep';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
@@ -6,11 +8,16 @@ import ForgotPasswordModal from '../components/ForgotPasswordModal';
 import AuthBackground from '../components/AuthBackground';
 
 const Login = () => {
+  const [signupOpen, setSignupOpen] = useState(false);
+  useEffect(() => {
+    authAPI.signupStatus().then(({ data }) => setSignupOpen(!!data.enabled)).catch(() => setSignupOpen(false));
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [mfa, setMfa] = useState(null); // password OK, two-step code (or setup) pending
 
   const { login, getPortalRoute } = useAuth();
   const navigate = useNavigate();
@@ -24,6 +31,8 @@ const Login = () => {
 
     if (result.success) {
       navigate(getPortalRoute());
+    } else if (result.mfa) {
+      setMfa(result.mfa);
     } else {
       setError(result.error);
     }
@@ -51,6 +60,9 @@ const Login = () => {
               </div>
             )}
 
+            {mfa ? (
+              <TwoFactorStep mfa={mfa} onSignedIn={() => navigate('/')} onCancel={() => { setMfa(null); setPassword(''); }} />
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
@@ -110,8 +122,9 @@ const Login = () => {
                 )}
               </button>
             </form>
+            )}
 
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center" hidden={!signupOpen}>
               <p className="text-slate-500 dark:text-slate-400">
                 Don't have an account?{' '}
                 <Link

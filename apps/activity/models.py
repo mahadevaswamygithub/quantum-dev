@@ -51,6 +51,10 @@ class ActivityLog(models.Model):
     class Meta:
         db_table = 'activity_logs'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', '-created_at']),
+            models.Index(fields=['actor', '-created_at']),
+        ]
 
     def __str__(self):
         who = self.actor_username or 'system'

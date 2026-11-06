@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
@@ -8,33 +10,38 @@ import PriceTag from '../components/common/PriceTag';
 import EmptyState from '../components/common/EmptyState';
 import SearchFilterBar from '../components/common/SearchFilterBar';
 import BookingHistoryModal from '../components/BookingHistoryModal';
+import RecordPaymentModal from '../components/RecordPaymentModal';
+import { downloadVoucher } from '../utils/downloadVoucher';
 import { useAuth } from '../context/AuthContext';
-import { bookingAPI, userAPI } from '../services/api';
-import { CalendarCheck, Check, LogIn, LogOut, Ban, RotateCcw, History } from 'lucide-react';
+import { usePermissions } from '../hooks/usePermissions';
+import { bookingAPI } from '../services/api';
+import { CalendarCheck, Check, LogIn, LogOut, Ban, RotateCcw, History, Wallet, Download } from 'lucide-react';
 
 const STATUS_TONE = { PENDING: 'amber', CONFIRMED: 'blue', CHECKED_IN: 'green', CHECKED_OUT: 'slate', CANCELLED: 'red' };
 const STATUS_LABEL = { PENDING: 'Pending Payment', CONFIRMED: 'Confirmed', CHECKED_IN: 'Checked In', CHECKED_OUT: 'Checked Out', CANCELLED: 'Cancelled' };
+const statusLabel = (b) => (b.status === 'PENDING' && b.payment_method === 'AT_PROPERTY' ? 'Awaiting confirmation' : STATUS_LABEL[b.status] || b.status);
 
 const BookingsList = () => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [bookings, setBookings] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [historyId, setHistoryId] = useState(null);
+  const [payFor, setPayFor] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [bookingsRes, usersRes] = await Promise.all([bookingAPI.getBookings(), userAPI.getUsers()]);
+      const bookingsRes = await bookingAPI.getBookings();
       setBookings(bookingsRes.data || []);
-      setAllUsers(usersRes.data || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  const live = useAutoRefresh(fetchData, { interval: 30000 });
 
   const filtered = statusFilter === 'ALL' ? bookings : bookings.filter(b => b.status === statusFilter);
 
@@ -51,7 +58,7 @@ const BookingsList = () => {
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
       <div className="flex flex-1 min-h-0">
-        <Sidebar userRole={user.role} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
+        <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
         <div className="flex-1 p-6 overflow-y-auto min-h-0">
           <div className="flex items-center justify-between mb-6">
@@ -61,6 +68,7 @@ const BookingsList = () => {
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {bookings.length} reservations</p>
             </div>
+            <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
           </div>
 
           <SearchFilterBar>
@@ -98,6 +106,7 @@ const BookingsList = () => {
                           <td className="px-4 py-3">
                             <div className="text-slate-900 dark:text-white font-medium">{b.customer_name}</div>
                             <div className="text-xs text-slate-400">{b.customer_email}</div>
+                            {b.customer_phone && <a href={`tel:${b.customer_phone}`} className="text-xs text-slate-500 dark:text-slate-300 hover:underline">{b.customer_phone}</a>}
                           </td>
                           <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{b.property_name || '—'}</td>
                           <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{b.room_detail?.name}</td>
@@ -107,26 +116,37 @@ const BookingsList = () => {
                           </td>
                           <td className="px-4 py-3"><PriceTag amount={b.total_amount} className="font-medium text-slate-900 dark:text-white" /></td>
                           <td className="px-4 py-3">
-                            <Badge tone={STATUS_TONE[b.status]}>{STATUS_LABEL[b.status] || b.status}</Badge>
-                            {b.payment_status && <div className="text-xs text-slate-400 mt-1">Payment: {b.payment_status}</div>}
+                            <Badge tone={STATUS_TONE[b.status]}>{statusLabel(b)}</Badge>
+                            {b.status !== 'CANCELLED' && (
+                              Number(b.balance_due) <= 0
+                                ? <div className="text-xs text-green-600 dark:text-green-400 mt-1">Paid in full</div>
+                                : <div className="text-xs text-slate-400 mt-1">
+                                    {Number(b.amount_paid) > 0 ? `Paid ₹${Number(b.amount_paid).toLocaleString('en-IN')} · ` : ''}₹{Number(b.balance_due).toLocaleString('en-IN')} due
+                                  </div>
+                            )}
+                            {b.payment_method === 'AT_PROPERTY' && <div className="text-xs text-slate-400 mt-1">Pays at property</div>}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
-                              {b.status === 'PENDING' && (
+                              {can('bookings.manage') && b.status === 'PENDING' && (
                                 <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.confirmBooking)} title="Confirm" className="p-1.5 hover:bg-blue-500/10 text-blue-500 rounded-lg disabled:opacity-50"><Check className="w-4 h-4" /></button>
                               )}
-                              {b.status === 'CONFIRMED' && (
+                              {can('bookings.manage') && b.status === 'CONFIRMED' && (
                                 <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.checkInBooking)} title="Check In" className="p-1.5 hover:bg-green-500/10 text-green-500 rounded-lg disabled:opacity-50"><LogIn className="w-4 h-4" /></button>
                               )}
-                              {b.status === 'CHECKED_IN' && (
+                              {can('bookings.manage') && b.status === 'CHECKED_IN' && (
                                 <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.checkOutBooking)} title="Check Out" className="p-1.5 hover:bg-slate-500/10 text-slate-500 rounded-lg disabled:opacity-50"><LogOut className="w-4 h-4" /></button>
                               )}
-                              {(b.status === 'PENDING' || b.status === 'CONFIRMED') && (
+                              {can('bookings.manage') && (b.status === 'PENDING' || b.status === 'CONFIRMED') && (
                                 <button disabled={busy} onClick={() => window.confirm('Cancel this reservation?') && runAction(b.id, bookingAPI.cancelBooking)} title="Cancel" className="p-1.5 hover:bg-red-500/10 text-red-500 rounded-lg disabled:opacity-50"><Ban className="w-4 h-4" /></button>
                               )}
-                              {b.payment_status === 'PAID' && (
+                              {can('payments.collect') && Number(b.balance_due) > 0 && ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.status) && (
+                                <button disabled={busy} onClick={() => setPayFor(b)} title="Record payment" className="p-1.5 hover:bg-green-500/10 text-green-600 rounded-lg disabled:opacity-50"><Wallet className="w-4 h-4" /></button>
+                              )}
+                              {can('payments.refund') && Number(b.amount_paid) > 0 && (
                                 <button disabled={busy} onClick={() => window.confirm('Refund this payment and cancel the reservation?') && runAction(b.id, bookingAPI.refundBooking)} title="Refund" className="p-1.5 hover:bg-amber-500/10 text-amber-500 rounded-lg disabled:opacity-50"><RotateCcw className="w-4 h-4" /></button>
                               )}
+                              <button onClick={() => downloadVoucher(b.id).catch(() => alert('Could not download the confirmation.'))} title="Download confirmation (PDF)" className="p-1.5 hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"><Download className="w-4 h-4" /></button>
                               <button onClick={() => setHistoryId(b.id)} title="History" className="p-1.5 hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"><History className="w-4 h-4" /></button>
                             </div>
                           </td>
@@ -142,6 +162,7 @@ const BookingsList = () => {
       </div>
 
       {historyId && <BookingHistoryModal bookingId={historyId} onClose={() => setHistoryId(null)} />}
+      <RecordPaymentModal booking={payFor} onClose={() => setPayFor(null)} onSaved={fetchData} />
     </div>
   );
 };

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import Pagination from '../components/common/Pagination';
 import SearchFilterBar from '../components/common/SearchFilterBar';
 import { useAuth } from '../context/AuthContext';
-import { activityAPI, tenantAPI, userAPI } from '../services/api';
+import { activityAPI } from '../services/api';
 import {
   History, Plus, Pencil, Trash2, LogIn, LogOut, ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -60,8 +62,6 @@ const ChangesCell = ({ changes }) => {
 const ActivityLogPage = () => {
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [tenants, setTenants] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,20 +89,7 @@ const ActivityLogPage = () => {
       setLoading(false);
     }
   }, [search, actionFilter, modelFilter, dateFrom, dateTo]);
-
-  // Sidebar just needs counts for its badges — fetched once, independent of the log filters/table above.
-  useEffect(() => {
-    const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
-    (async () => {
-      try {
-        const calls = [userAPI.getUsers()];
-        if (isMSP) calls.push(tenantAPI.getTenants());
-        const [usersRes, tenantsRes] = await Promise.all(calls);
-        setAllUsers(usersRes.data || []);
-        if (tenantsRes) setTenants(tenantsRes.data || []);
-      } catch (err) { console.error(err); }
-    })();
-  }, [user.role]);
+  const live = useAutoRefresh(fetchLogs, { onFocus: false });
 
   useEffect(() => {
     const t = setTimeout(fetchLogs, 300); // debounce the search box
@@ -123,8 +110,8 @@ const ActivityLogPage = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar
           userRole={user.role}
-          tenants={tenants}
-          users={allUsers}
+         
+         
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
@@ -141,6 +128,7 @@ const ActivityLogPage = () => {
                   {user.role === 'MSP_ADMIN' ? 'Record changes and sign-ins across your organizations' : 'Record changes and sign-ins in your organization'}
                 </p>
               </div>
+              <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
             </div>
 
             {/* Toolbar */}

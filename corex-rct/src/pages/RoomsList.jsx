@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
@@ -11,7 +13,8 @@ import SearchFilterBar from '../components/common/SearchFilterBar';
 import RoomFormModal from '../components/RoomFormModal';
 import BookingLinkCard from '../components/BookingLinkCard';
 import { useAuth } from '../context/AuthContext';
-import { bookingAPI, userAPI } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
+import { bookingAPI } from '../services/api';
 import { BedDouble, Plus, Pencil, Trash2, Users as UsersIcon, ImageOff } from 'lucide-react';
 
 const ROOM_TYPE_LABELS = {
@@ -20,10 +23,10 @@ const ROOM_TYPE_LABELS = {
 };
 
 const RoomsList = () => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [rooms, setRooms] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [properties, setProperties] = useState([]);
   const [search, setSearch] = useState('');
@@ -37,15 +40,15 @@ const RoomsList = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [roomsRes, usersRes, propsRes] = await Promise.all([bookingAPI.getRooms(), userAPI.getUsers(), bookingAPI.getProperties()]);
+      const [roomsRes, propsRes] = await Promise.all([bookingAPI.getRooms(), bookingAPI.getProperties()]);
       setRooms(roomsRes.data || []);
-      setAllUsers(usersRes.data || []);
       setProperties(propsRes.data || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  const live = useAutoRefresh(fetchData);
 
   const filtered = rooms.filter(r => {
     const matchSearch = r.name.toLowerCase().includes(search.toLowerCase());
@@ -71,7 +74,7 @@ const RoomsList = () => {
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
       <div className="flex flex-1 min-h-0">
-        <Sidebar userRole={user.role} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
+        <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
         <div className="flex-1 p-6 overflow-y-auto min-h-0">
           <div className="flex items-center justify-between mb-6">
@@ -81,7 +84,10 @@ const RoomsList = () => {
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {rooms.length} rooms</p>
             </div>
-            <Button icon={Plus} onClick={() => { setEditingRoom(null); setShowForm(true); }}>Add Room</Button>
+            <div className="flex items-center gap-3">
+              {can('rooms.manage') && <Button icon={Plus} onClick={() => { setEditingRoom(null); setShowForm(true); }}>Add Room</Button>}
+              <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+            </div>
           </div>
 
           <BookingLinkCard />
@@ -129,7 +135,7 @@ const RoomsList = () => {
                         <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400"><UsersIcon className="w-3.5 h-3.5" /> {room.capacity} guest{room.capacity !== 1 ? 's' : ''}</span>
                         <PriceTag amount={room.price_per_night} suffix="/ night" className="font-semibold text-slate-900 dark:text-white text-sm" />
                       </div>
-                      <div className="flex gap-2 mt-3">
+                      {can('rooms.manage') && <div className="flex gap-2 mt-3">
                         <button
                           onClick={() => { setEditingRoom(room); setShowForm(true); }}
                           className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-white text-xs font-medium rounded-lg transition-colors"
@@ -142,7 +148,7 @@ const RoomsList = () => {
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
-                      </div>
+                      </div>}
                     </div>
                   </Card>
                 );

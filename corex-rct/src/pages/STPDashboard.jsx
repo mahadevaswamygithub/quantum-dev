@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
+import { usePermissions } from '../hooks/usePermissions';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
@@ -8,21 +11,22 @@ import { Users, Activity, Settings, ArrowRight, UserPlus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const STPDashboard = () => {
+  const { can, canAny, isAdmin } = usePermissions();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await userAPI.getUsers();
-        setUsers(res.data || []);
-      } catch (err) { console.error(err); }
-      finally { setLoading(false); }
-    })();
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await userAPI.getUsers();
+      setUsers(res.data || []);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   }, []);
+  useEffect(() => { fetchData(); }, [fetchData]);
+  const live = useAutoRefresh(fetchData, { interval: 60000 });
 
   const active = users.filter(u => u.is_active).length;
   const admins = users.filter(u => u.role?.includes('ADMIN')).length;
@@ -33,12 +37,15 @@ const STPDashboard = () => {
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
       <div className="flex flex-1 min-h-0">
-        <Sidebar userRole={user.role} users={users} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
+        <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
         <div className="flex-1 p-6 overflow-y-auto min-h-0">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">STP Dashboard</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Welcome to {user.organization_name || 'your organization'}</p>
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">STP Dashboard</h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Welcome to {user.organization_name || 'your organization'}</p>
+            </div>
+            <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
           </div>
 
           {/* Stats */}
@@ -67,10 +74,10 @@ const STPDashboard = () => {
             <h2 className="font-semibold text-slate-900 dark:text-white mb-4">Quick Actions</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {[
-                { icon: UserPlus, label: 'Add User', sub: 'Create a new user account', color: 'text-blue-400', bg: 'bg-blue-500/10', action: () => navigate('/stp/users') },
-                { icon: Users, label: 'Manage Users', sub: 'View and manage all users', color: 'text-green-400', bg: 'bg-green-500/10', action: () => navigate('/stp/users') },
-                { icon: Settings, label: 'Settings', sub: 'Configure organization settings', color: 'text-purple-400', bg: 'bg-purple-500/10', action: () => navigate('/stp/settings') },
-              ].map((a, i) => {
+                can('users.manage') && { icon: UserPlus, label: 'Add User', sub: 'Create a new user account', color: 'text-blue-400', bg: 'bg-blue-500/10', action: () => navigate('/stp/users') },
+                can('users.view') && { icon: Users, label: 'Manage Users', sub: 'View and manage all users', color: 'text-green-400', bg: 'bg-green-500/10', action: () => navigate('/stp/users') },
+                (isAdmin || canAny('settings.manage', 'users.view', 'bookings.view')) && { icon: Settings, label: 'Settings', sub: 'Configure organization settings', color: 'text-purple-400', bg: 'bg-purple-500/10', action: () => navigate('/stp/settings') },
+              ].filter(Boolean).map((a, i) => {
                 const Icon = a.icon;
                 return (
                   <button key={i} onClick={a.action} className="p-4 bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-left transition-all group border border-transparent hover:border-slate-300 dark:hover:border-slate-600">

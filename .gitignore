@@ -33,3 +33,12 @@ yarn-error.log*
 venv/
 env/
 __pycache__/
+
+# User uploads (MEDIA_ROOT) — never commit: they can contain personal documents.
+/media/
+# Old upload folders from before uploads moved under media/
+/profile_pictures/
+/room_images/
+/user_documents/
+/org_logos/
+/org_covers/

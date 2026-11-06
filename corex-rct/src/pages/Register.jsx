@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { authAPI } from '../services/api';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Lock, Building2, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import AuthBackground from '../components/AuthBackground';
 
 const Register = () => {
+  const [signupOpen, setSignupOpen] = useState(null);
+  useEffect(() => {
+    authAPI.signupStatus().then(({ data }) => setSignupOpen(!!data.enabled)).catch(() => setSignupOpen(false));
+  }, []);
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -68,6 +73,20 @@ const Register = () => {
     setLoading(false);
   };
 
+  if (signupOpen === false) {
+    return (
+      <AuthBackground>
+        <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-8 text-center">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Sign-up is closed</h2>
+          <p className="text-slate-500 dark:text-slate-400 mb-6">
+            New organizations are set up by your service provider. Ask them to create an account for you — you'll get an email to set your password.
+          </p>
+          <Link to="/login" className="font-semibold text-green-600 hover:text-green-700">Back to sign in</Link>
+        </div>
+      </AuthBackground>
+    );
+  }
+
   if (success) {
     return (
       <AuthBackground>
@@ -75,7 +94,7 @@ const Register = () => {
           <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Registration Successful!</h2>
           <p className="text-slate-500 dark:text-slate-400 mb-4">
-            Your account has been created. A welcome email has been sent to your email address.
+            Your organization is ready and you're its admin. You can sign in now.
           </p>
           <p className="text-sm text-slate-500 dark:text-slate-500">Redirecting to login page...</p>
         </div>
@@ -207,13 +226,10 @@ const Register = () => {
                 onChange={handleChange}
                 className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500"
               >
-                <option value="STP">Single Tenant Portal (STP)</option>
-                <option value="MSP">Multi-Service Provider (MSP)</option>
+                <option value="STP">Room booking property</option>
               </select>
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
-                {formData.tenant_type === 'MSP'
-                  ? 'MSP can manage multiple sub-organizations'
-                  : 'STP is for individual organizations'}
+                You'll be the admin of your new property. Service providers (MSP) are set up by CoreX.
               </p>
             </div>
 

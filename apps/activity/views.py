@@ -2,6 +2,7 @@ from django.db.models import Q
 from rest_framework import viewsets
 from rest_framework.permissions import IsAuthenticated
 
+from apps.core.access import has_perm
 from apps.core.permissions import OrganizationScopedQuerysetMixin
 from .models import ActivityLog
 from .serializers import ActivityLogSerializer
@@ -27,12 +28,14 @@ class ActivityLogViewSet(OrganizationScopedQuerysetMixin, viewsets.ReadOnlyModel
 
     def get_queryset(self):
         user = self.request.user
-        if user.role not in ('MSP_ADMIN', 'STP_ADMIN'):
+        if not has_perm(user, 'activity.view'):
             return ActivityLog.objects.none()
 
+        # Staff audit trail only. Guests' actions on a booking (booked,
+        # cancelled, paid) stay on that booking's own timeline instead.
         qs = self.get_organization_scoped_queryset(
             ActivityLog.objects.select_related('organization')
-        )
+        ).exclude(actor_role='CUSTOMER')
 
         params = self.request.query_params
         action = params.get('action')

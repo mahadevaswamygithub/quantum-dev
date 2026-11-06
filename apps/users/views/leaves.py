@@ -5,7 +5,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from ..models import AttendanceRecord, LeaveBalance, LeaveRequest, LeaveType, User
+from apps.core.access import HRScopedMixin, has_perm
+from ..models import AttendanceRecord, LeaveBalance, LeaveRequest, LeaveType
 from ..serializers import LeaveBalanceSerializer, LeaveRequestSerializer, LeaveTypeSerializer
 
 
@@ -15,25 +16,23 @@ class LeaveTypeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = LeaveType.objects.filter(is_active=True)
 
 
-class LeaveRequestViewSet(viewsets.ModelViewSet):
+class LeaveRequestViewSet(HRScopedMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = LeaveRequestSerializer
+    hr_perm = 'hr.leaves'
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # Editing/deleting a request directly is staff-only; employees use
+        # create and cancel.
+        if self.action in ('update', 'partial_update', 'destroy', 'approve', 'reject'):
+            self.require_hr_perm()
 
     def get_queryset(self):
-        qs = LeaveRequest.objects.select_related('user').order_by('-created_at')
-        req = self.request
-        user_id = req.query_params.get('user_id')
-
-        if req.user.role == 'EMPLOYEE':
-            return qs.filter(user=req.user)
-        if user_id:
-            return qs.filter(user_id=user_id)
-        return qs
+        return self.hr_queryset(LeaveRequest.objects.select_related('user').order_by('-created_at'))
 
     def perform_create(self, serializer):
-        user_id = self.request.data.get('user_id') or self.request.user.id
-        user = User.objects.get(id=user_id)
-        serializer.save(user=user)
+        serializer.save(user=self.hr_target_user(self.request.data.get('user_id')))
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):
@@ -46,7 +45,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         leave.save()
 
         # Auto-mark attendance as LEAVE for each day in range
-        from datetime import date, timedelta
+        from datetime import timedelta
         current = leave.from_date
         while current <= leave.to_date:
             AttendanceRecord.objects.update_or_create(
@@ -72,7 +71,7 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'], url_path='cancel')
     def cancel(self, request, pk=None):
         leave = self.get_object()
-        if leave.user != request.user and request.user.role not in ('MSP_ADMIN', 'STP_ADMIN'):
+        if leave.user != request.user and not has_perm(request.user, 'hr.leaves'):
             return Response({'error': 'Not authorized'}, status=403)
         if leave.status == 'APPROVED':
             self._update_balance(leave.user, leave.leave_type, leave.days, add=False)
@@ -95,15 +94,10 @@ class LeaveRequestViewSet(viewsets.ModelViewSet):
         balance.save()
 
 
-class LeaveBalanceViewSet(viewsets.ReadOnlyModelViewSet):
+class LeaveBalanceViewSet(HRScopedMixin, viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = LeaveBalanceSerializer
+    hr_perm = 'hr.leaves'
 
     def get_queryset(self):
-        qs = LeaveBalance.objects.all()
-        user_id = self.request.query_params.get('user_id')
-        if self.request.user.role == 'EMPLOYEE':
-            return qs.filter(user=self.request.user)
-        if user_id:
-            return qs.filter(user_id=user_id)
-        return qs
+        return self.hr_queryset(LeaveBalance.objects.all())

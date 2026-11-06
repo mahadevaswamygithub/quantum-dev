@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { Lock, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 
 const ResetPassword = () => {
   const { uid, token } = useParams();
+  // Guests' reset links carry ?guest=1 (set by the API) — send them back to the booking site's login.
+  const [searchParams] = useSearchParams();
+  const loginPath = searchParams.get('guest') === '1' ? '/book/login' : '/login';
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -48,7 +51,7 @@ const ResetPassword = () => {
       );
       setSuccess(true);
       setTimeout(() => {
-        navigate('/login');
+        navigate(loginPath);
       }, 3000);
     } catch (err) {
       setError(err.response?.data?.non_field_errors?.[0] || 'Failed to reset password. The link may have expired.');
@@ -146,7 +149,7 @@ const ResetPassword = () => {
 
           <div className="mt-6 text-center">
             <Link
-              to="/login"
+              to={loginPath}
               className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-semibold"
             >
               Back to Login

@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The `hidden` attribute must win over Tailwind display utilities (flex,
+   inline-flex…). Used to hide actions a staff role isn't allowed to use. */
+[hidden] {
+  display: none !important;
+}
+
+
 @layer base {
   html {
     color-scheme: light;

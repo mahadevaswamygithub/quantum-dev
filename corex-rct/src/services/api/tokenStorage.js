@@ -27,6 +27,13 @@ export const tokenStorage = {
     if (impersonation) sessionStorage.setItem(FLAG, '1');
   },
 
+  /** Store a rotated pair (refresh tokens change on every refresh). */
+  setTokens(accessToken, refreshToken) {
+    const store = isImpersonating() ? sessionStorage : localStorage;
+    store.setItem('accessToken', accessToken);
+    if (refreshToken) store.setItem('refreshToken', refreshToken);
+  },
+
   setAccessToken(token) {
     (isImpersonating() ? sessionStorage : localStorage).setItem('accessToken', token);
   },

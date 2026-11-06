@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-import os
 from decouple import config, Csv
 from corsheaders.defaults import default_headers
 
@@ -31,6 +30,11 @@ SECRET_KEY = config(
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
+
+_PLACEHOLDER_KEY_PREFIXES = ('django-insecure-', 'change-me')
+if not DEBUG and (not SECRET_KEY or SECRET_KEY.startswith(_PLACEHOLDER_KEY_PREFIXES)):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("SECRET_KEY must be configured with a strong non-default secret in production!")
 
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
@@ -55,7 +59,17 @@ FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 # when these aren't configured.
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Secret set on the Razorpay dashboard webhook (Settings -> Webhooks); the
+# webhook endpoint answers 503 until this is configured.
+RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET', default='')
+# How long an unpaid reservation holds its room before others can book it.
+BOOKING_PAYMENT_WINDOW_MINUTES = config('BOOKING_PAYMENT_WINDOW_MINUTES', default=15, cast=int)
+# Check-in times and cancellation deadlines are wall-clock times at the property.
+PROPERTY_TIMEZONE = config('PROPERTY_TIMEZONE', default='Asia/Kolkata')
+# Booking emails to guests are sent after commit on a background thread; False = inline (tests).
+BOOKING_EMAILS_ASYNC = config('BOOKING_EMAILS_ASYNC', default=True, cast=bool)
+# Optional Fernet key for encrypting stored secrets (org SMTP passwords); derived from SECRET_KEY if unset.
+FIELD_ENCRYPTION_KEY = config('FIELD_ENCRYPTION_KEY', default='')
 # Application definition
 
 
@@ -67,6 +81,8 @@ SHARED_APPS = [
     'django.contrib.messages',
     'django.contrib.admin',
     'rest_framework_simplejwt',
+    # Lets logout / password change actually revoke refresh tokens.
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django.contrib.staticfiles',
 
@@ -92,7 +108,6 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -155,26 +170,84 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # How many reverse proxies (nginx, load balancer) sit in front of Django.
+    # Throttles use it to find the real client IP in X-Forwarded-For; 0 = use
+    # the direct connection (dev). Production behind nginx: TRUSTED_PROXY_COUNT=1.
+    'NUM_PROXIES': config('TRUSTED_PROXY_COUNT', default=0, cast=int),
+    # Per-IP limits on the anonymous auth endpoints (views set throttle_scope).
+    # Per-account login lockout is separate: apps.core.login_guard.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': config('THROTTLE_LOGIN', default='20/min'),
+        'password_reset': config('THROTTLE_PASSWORD_RESET', default='5/hour'),
+        'signup': config('THROTTLE_SIGNUP', default='10/hour'),
+        'impersonation': config('THROTTLE_IMPERSONATION', default='30/hour'),
+    },
 }
+
+# Security headers (always on).
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+# HTTPS (production). Turn on once the site is served over https (TLS ends at
+# nginx or a load balancer that sets X-Forwarded-Proto): redirects http→https,
+# marks cookies Secure, and tells browsers to only ever use https (HSTS).
+HTTPS_ENABLED = config('HTTPS_ENABLED', default=False, cast=bool)
+if HTTPS_ENABLED:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SECURE_REDIRECT_EXEMPT = [r'^api/health/?$']  # internal container health checks speak plain http
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+# Public "create your organization" sign-up (/register). Off by default:
+# organizations are normally created by an MSP admin.
+ALLOW_PUBLIC_ORG_SIGNUP = config('ALLOW_PUBLIC_ORG_SIGNUP', default=False, cast=bool)
+
+# Login lockout: this many failed attempts for one email locks it for LOGIN_LOCKOUT_MINUTES.
+# Roles that must use two-step verification (others may turn it on themselves).
+TWO_FACTOR_REQUIRED_ROLES = config('TWO_FACTOR_REQUIRED_ROLES', default='MSP_ADMIN', cast=Csv())
+LOGIN_MAX_FAILURES = config('LOGIN_MAX_FAILURES', default=5, cast=int)
+LOGIN_LOCKOUT_MINUTES = config('LOGIN_LOCKOUT_MINUTES', default=15, cast=int)
+
+# Cache (login lockout counters, throttles). In-memory by default; set
+# CACHE_USE_REDIS=True in production so every server process shares the counters.
+if config('CACHE_USE_REDIS', default=False, cast=bool):
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+                          'LOCATION': config('REDIS_URL', default='redis://localhost:6379/0')}}
+else:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'corex'}}
 
 # JWT Settings
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    # Short-lived access tokens; the app refreshes them silently.
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('JWT_ACCESS_MINUTES', default=15, cast=int)),
+    # How long someone stays signed in without using the app.
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=config('JWT_REFRESH_DAYS', default=7, cast=int)),
+    # Every refresh issues a new refresh token and retires the old one, so a
+    # stolen refresh token stops working as soon as the real user refreshes.
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 # CORS Settings
-CORS_ALLOW_ALL_ORIGINS = True
+# Only the web app's own address(es) may call the API from a browser. In
+# production nginx serves the app and API from one origin, so this barely matters
+# there; set CORS_ALLOWED_ORIGINS if the frontend lives on a different domain.
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=False, cast=bool)
 CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:8002",
-    # "https://*.ngrok-free.dev"
-]
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv(),
+)
+# Dev convenience: frontends exposed through an ngrok tunnel.
+CORS_ALLOWED_ORIGIN_REGEXES = [r'^https://[\w-]+\.ngrok-free\.(dev|app)$'] if DEBUG else []
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'ngrok-skip-browser-warning',
@@ -191,6 +264,13 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+# Periodic jobs — run by `celery -A corex beat` (see README → Redis + Celery).
+CELERY_BEAT_SCHEDULE = {
+    'expire-pending-bookings': {
+        'task': 'apps.bookings.tasks.expire_pending_bookings',
+        'schedule': 300.0,  # every 5 minutes
+    },
+}
 
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -253,12 +333,12 @@ STORAGES = {
     },
 }
 
-# Media (user uploads — profile pictures, org logos, room images, documents).
-# MEDIA_ROOT = BASE_DIR so the existing upload_to paths (e.g. 'user_documents/',
-# 'room_images/') keep resolving to the same folders that already exist at
-# the project root — nothing needs to move.
+# Media (user uploads — profile pictures, org logos/covers, room images,
+# employee documents). Kept in one git-ignored folder, outside the source tree,
+# so uploads never get committed. upload_to paths ('room_images/', ...) are
+# relative to this folder, so stored file names didn't change when it moved.
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR
+MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

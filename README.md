@@ -27,7 +27,9 @@ gracefully (a friendly error in the chat widget) if it's not running.
 | Service | Path | Port | Framework |
 |---|---|---|---|
 | Backend | repo root (`apps/`, `chat/`, `corex/`) | 8000 | Django + DRF |
-| Frontend | `corex-rct/` | 3000 | React (CRA) |
+| Frontend | `corex-rct/` | 3000 | React (Vite) |
+| Redis | Docker container | 6379 | Celery broker |
+| Celery worker | repo root | – | Background tasks (emails) |
 | Orchestrator | `orchestrator/` | 8002 | FastAPI + LangGraph |
 
 ## Docker
@@ -75,9 +77,13 @@ else differs from the dev compose file.
 - Python 3.10
 - Node.js + npm
 - PostgreSQL, running, with a database created (see `DB_*` below)
+- Redis + a Celery worker — **required**: creating an organization queues a
+  welcome email through Celery, and without Redis that request hangs
+  (see [Redis + Celery](#2-redis--celery-background-tasks))
+- Docker Desktop (the easiest way to run Redis on Windows)
 - Optional, only for the AI chat assistant:
   - [Ollama](https://ollama.com) running locally (`ollama pull llama3.1 && ollama serve`) — the default, no API key needed — **or** an API key for Anthropic/OpenAI/Gemini
-  - Redis, only if you want chat sessions to survive a restart (`orchestrator` works without it, using in-memory sessions)
+  - Redis-backed chat sessions, only if you want them to survive a restart (`orchestrator` works without it, using in-memory sessions)
 
 ## 1. Backend (Django)
 
@@ -86,7 +92,9 @@ venv\Scripts\activate          # create first with: python -m venv venv
 pip install -r requirements.txt
 ```
 
-Create a `.env` in the repo root (all of these have working defaults for local dev — only add what you need to change):
+Create a `.env` in the repo root — start from the template (`copy .env.example .env`)
+and generate your own `SECRET_KEY`. Everything else has working defaults for
+local dev; only add what you need to change:
 
 ```bash
 DB_NAME=corex_db
@@ -114,13 +122,52 @@ python manage.py runserver
 
 Django is now on `http://localhost:8000`.
 
-Optional — background email/task queue (uses Redis as the broker):
+## 2. Redis + Celery (background tasks)
 
-```bash
-celery -A corex worker -l info --pool=solo
+Django sends emails (e.g. the welcome email when an organization is created)
+through a Celery worker, using Redis as the broker. Both must be running, or
+you'll see this in the Django/Celery console and the request will hang:
+
+```
+Connection to Redis lost: Retry (0/20) now.
 ```
 
-## 2. Frontend (React)
+**Start Redis** (Docker — Redis has no native Windows build):
+
+```bash
+docker run -d --name corex-redis -p 6379:6379 redis:7-alpine   # first time
+docker start corex-redis                                        # every time after
+```
+
+> The `redis` service in `docker-compose.yml` is only for the full Docker
+> stack — its host port is commented out, so a natively-run Django can't
+> reach it. Use the container above instead.
+
+**Start the Celery worker** (second terminal, repo root):
+
+```bash
+venv\Scripts\activate
+celery -A corex worker -l info -P solo
+```
+
+`-P solo` is required on Windows — Celery's default pool doesn't work there.
+
+**Start Celery beat** (third terminal, repo root) — runs scheduled jobs, such
+as cancelling unpaid bookings once their payment window
+(`BOOKING_PAYMENT_WINDOW_MINUTES`, default 15) has passed:
+
+```bash
+venv\Scripts\activate
+celery -A corex beat -l info
+```
+
+Room availability never depends on beat having run — a stale unpaid booking
+stops blocking the room as soon as its window passes — beat just keeps the
+statuses shown to staff and customers up to date.
+
+Django reads the broker from `REDIS_URL` (default `redis://localhost:6379/0`).
+
+## 3. Frontend (React + Vite)
 
 ```bash
 cd corex-rct
@@ -128,11 +175,14 @@ npm install
 npm start
 ```
 
-Runs on `http://localhost:3000`. It talks to Django at
-`REACT_APP_API_URL` (see `corex-rct/.env`), defaulting to
+Runs on `http://localhost:3000`. It talks to Django at `VITE_API_URL`
+(or the older `REACT_APP_API_URL`; see `corex-rct/.env`), defaulting to
 `http://127.0.0.1:8000/api` if unset.
 
-## 3. Orchestrator (AI chat assistant)
+Other scripts: `npm run build` (production build into `build/`) and
+`npm test` (Vitest).
+
+## 4. Orchestrator (AI chat assistant)
 
 ```bash
 cd orchestrator
@@ -150,15 +200,32 @@ provider or enable Redis-backed sessions.
 ## Start-up order
 
 Doesn't matter much — nothing crashes if a downstream service isn't up yet,
-calls just fail until it is. In practice: **Postgres → Django → everything
-else, in any order.**
+calls just fail until it is. In practice: **Postgres + Redis → Django +
+Celery worker → everything else, in any order.**
+
+Day-to-day, that's five terminals:
+
+| # | Command | From |
+|---|---|---|
+| 1 | `docker start corex-redis` | anywhere |
+| 2 | `python manage.py runserver` | repo root (venv active) |
+| 3 | `celery -A corex worker -l info -P solo` | repo root (venv active) |
+| 4 | `celery -A corex beat -l info` | repo root (venv active) |
+| 5 | `npm start` | `corex-rct/` |
+
+Plus `uvicorn main:app --reload --port 8002` in `orchestrator/` if you need
+the AI chat assistant.
 
 ## Verifying it's all up
 
 ```bash
 curl http://localhost:8000/api/                      # Django
+docker exec corex-redis redis-cli ping                # Redis → PONG
 curl http://localhost:8002/health                     # Orchestrator
 ```
+
+The Celery terminal should show `celery@<host> ready.` and no
+"Connection to Redis lost" lines.
 
 Then log in to the app at `http://localhost:3000` and open the chat
 assistant (bottom-right bubble, hidden for Employee-role users) to exercise

@@ -40,3 +40,6 @@ drf-nested-routers
 # Docker/production serving
 gunicorn
 whitenoise
+reportlab>=4.2,<5
+cryptography>=42,<47
+pyotp>=2.9,<3

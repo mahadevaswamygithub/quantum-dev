@@ -3,6 +3,13 @@ import api from './httpClient';
 export const bookingAPI = {
   // Customer self-registration for a specific org's booking site (AllowAny on the backend)
   registerCustomer: (data) => api.post('/bookings/customers/register/', data),
+  // Public booking-site browsing (no login): rooms with availability for ?check_in&check_out&guests&property
+  getPublicProperties: (orgId) => api.get(`/bookings/public/${orgId}/properties/`),
+  getPublicRooms: (orgId, params) => api.get(`/bookings/public/${orgId}/rooms/`, { params }),
+  getPublicRoom: (orgId, roomId, params) => api.get(`/bookings/public/${orgId}/rooms/${roomId}/`, { params }),
+  // Settings → Booking Site (staff read, STP admin write)
+  getBookingSettings: () => api.get('/bookings/settings/'),
+  updateBookingSettings: (data) => api.patch('/bookings/settings/', data),
   // Public lookup — {id, name, org_type} for an active ROOM_BOOKING STP org, no auth required
   getPublicOrgInfo: (orgId) => api.get(`/tenants/organizations/${orgId}/public_info/`),
   // Public list — every active ROOM_BOOKING STP org, for the shared /book landing page's org picker
@@ -30,7 +37,19 @@ export const bookingAPI = {
   deleteRoomImage: (roomId, imageId) => api.delete(`/bookings/rooms/${roomId}/images/${imageId}/`),
 
   // Reservations
-  getBookings: () => api.get('/bookings/reservations/'),
+  getBookings: (params) => api.get('/bookings/reservations/', { params }),
+  // Booking confirmation PDF (guest or staff)
+  downloadVoucher: (id) => api.get(`/bookings/reservations/${id}/voucher/`, { responseType: 'blob' }),
+  // Desk payments & daily collection (staff)
+  recordPayment: (id, data) => api.post(`/bookings/reservations/${id}/record_payment/`, data),
+  getCollections: (date) => api.get('/bookings/collections/', { params: date ? { date } : undefined }),
+  // Reviews
+  submitReview: (id, data) => api.post(`/bookings/reservations/${id}/review/`, data),
+  getStaffReviews: (params) => api.get('/bookings/reviews/', { params }),
+  replyToReview: (reviewId, reply) => api.post(`/bookings/reviews/${reviewId}/reply/`, { reply }),
+  getPublicReviews: (orgId) => api.get(`/bookings/public/${orgId}/reviews/`),
+  // Staff: guests who booked with this property (?search=)
+  getGuests: (params) => api.get('/bookings/guests/', { params }),
   getBooking: (id) => api.get(`/bookings/reservations/${id}/`),
   createBooking: (data) => api.post('/bookings/reservations/', data),
   createOrder: (id) => api.post(`/bookings/reservations/${id}/create_order/`),

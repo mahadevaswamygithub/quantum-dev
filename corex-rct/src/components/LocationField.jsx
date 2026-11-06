@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MapPin, Loader2, X, Search } from 'lucide-react';
 import { geocodeSearch, reverseGeocode } from '../utils/geocode';
+import Tooltip from './common/Tooltip';
 
 /**
  * "Type a place, we'll find the coordinates" location picker — replaces
@@ -62,7 +63,10 @@ const LocationField = ({ latitude, longitude, onResolved, onClear }) => {
 
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Location (optional)</label>
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Location (optional)</label>
+        <Tooltip content="Search for a city or address — plots this organization on the dashboard map. Powered by OpenStreetMap." />
+      </div>
       <div className="flex gap-2">
         <input
           type="text"
@@ -103,9 +107,6 @@ const LocationField = ({ latitude, longitude, onResolved, onClear }) => {
       )}
       {status === 'error' && (
         <p className="mt-1.5 text-xs text-red-600 dark:text-red-400">Location lookup failed — check your connection and try again.</p>
-      )}
-      {status === 'idle' && (
-        <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-500">Search for a city or address — plots this organization on the dashboard map. Powered by OpenStreetMap.</p>
       )}
     </div>
   );

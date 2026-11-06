@@ -14,6 +14,11 @@ from .auth import (
     ChangePasswordView,
 )
 from .users import UserViewSet
+from .roles import OrgRoleViewSet
+from .two_factor import (
+    TwoFactorVerifyView, TwoFactorSetupView, TwoFactorEnableView, TwoFactorStatusView,
+    TwoFactorDisableView, TwoFactorBackupCodesView,
+)
 from .attendance import AttendanceViewSet
 from .payroll import (
     SalarySettingsView,
@@ -34,4 +39,7 @@ __all__ = [
     'AttendanceViewSet',
     'SalarySettingsView', 'SalaryRecordViewSet', 'SalaryAdvanceViewSet',
     'LeaveTypeViewSet', 'LeaveRequestViewSet', 'LeaveBalanceViewSet',
+    'OrgRoleViewSet',
+    'TwoFactorVerifyView', 'TwoFactorSetupView', 'TwoFactorEnableView', 'TwoFactorStatusView',
+    'TwoFactorDisableView', 'TwoFactorBackupCodesView',
 ]

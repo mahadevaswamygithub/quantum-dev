@@ -63,10 +63,11 @@ services:
       # "localhost" (that's only correct for docker-compose.yml/dev).
       # Required — fails fast rather than silently seeding the wrong domain.
       PUBLIC_TENANT_DOMAIN: ${PUBLIC_TENANT_DOMAIN:?set PUBLIC_TENANT_DOMAIN in .env.prod (e.g. your production domain)}
+      # nginx (frontend container) sits in front of Django — needed for correct per-IP rate limits.
+      TRUSTED_PROXY_COUNT: 1
     volumes:
-      - profile_pictures:/app/profile_pictures
-      - room_images:/app/room_images
-      - user_documents:/app/user_documents
+      # All uploads (photos, logos, covers, documents) — one persistent volume.
+      - media:/app/media
     ports:
       - "8000:8000"
     depends_on:
@@ -91,9 +92,8 @@ services:
       DEBUG: "False"
       SKIP_MIGRATE: "1" # backend already migrates; avoid a race between the two
     volumes:
-      - profile_pictures:/app/profile_pictures
-      - room_images:/app/room_images
-      - user_documents:/app/user_documents
+      # All uploads (photos, logos, covers, documents) — one persistent volume.
+      - media:/app/media
     depends_on:
       db:
         condition: service_healthy
@@ -144,6 +144,4 @@ services:
 volumes:
   pgdata:
   redisdata:
-  profile_pictures:
-  room_images:
-  user_documents:
+  media:

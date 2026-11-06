@@ -11,8 +11,9 @@ export const useOrgInfo = (orgId) => {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
     setNotFound(false);
+    if (!orgId) { setOrg(null); setLoading(false); return undefined; }
+    setLoading(true);
     bookingAPI.getPublicOrgInfo(orgId)
       .then(({ data }) => { if (!cancelled) setOrg(data); })
       .catch(() => { if (!cancelled) setNotFound(true); })

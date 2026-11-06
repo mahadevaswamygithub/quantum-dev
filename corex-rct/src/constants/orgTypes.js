@@ -10,4 +10,8 @@ export const ORG_TYPES = [
   { value: 'OTHER', label: 'Other' },
 ];
 
+/** Verticals that are actually built — mirrors Organization.AVAILABLE_ORG_TYPES.
+ * Only these are offered when creating an org or changing its type. */
+export const AVAILABLE_ORG_TYPES = ORG_TYPES.filter(t => t.value === 'ROOM_BOOKING');
+
 export const orgTypeLabel = (value) => ORG_TYPES.find(t => t.value === value)?.label || value;

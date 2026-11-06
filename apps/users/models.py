@@ -4,6 +4,26 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+class OrgRole(models.Model):
+    """A named set of staff permissions, owned by one organization
+    (e.g. "Front desk", "Cashier"). Seeded from apps.core.access.PRESETS."""
+    organization = models.ForeignKey('tenants.Organization', on_delete=models.CASCADE, related_name='roles')
+    name = models.CharField(max_length=60)
+    description = models.CharField(max_length=200, blank=True)
+    permissions = models.JSONField(default=list, blank=True)
+    is_preset = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'org_roles'
+        ordering = ['name']
+        constraints = [models.UniqueConstraint(fields=['organization', 'name'], name='uniq_role_name_per_org')]
+
+    def __str__(self):
+        return f"{self.name} — {self.organization.name}"
+
+
 class User(AbstractUser):
     ROLE_CHOICES = [
         ('MSP_ADMIN', 'MSP Admin'),
@@ -27,6 +47,12 @@ class User(AbstractUser):
         related_name='users'
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='STP_USER')
+    # What an MSP_USER / STP_USER may see and do (see apps.core.access).
+    # Admin tiers ignore it (they have everything); PROTECT so a role in use
+    # can't be deleted out from under its users.
+    access_role = models.ForeignKey(
+        'users.OrgRole', on_delete=models.PROTECT, null=True, blank=True, related_name='users',
+    )
     phone = models.CharField(max_length=20, null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField(null=True, blank=True)
@@ -42,6 +68,10 @@ class User(AbstractUser):
 
     class Meta:
         db_table = 'users'
+        indexes = [
+            models.Index(fields=['organization', 'role']),
+            models.Index(fields=['organization', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.email})"
@@ -114,13 +144,16 @@ class AttendanceRecord(models.Model):
         db_table = 'attendance_records'
         unique_together = ('user', 'date')
         ordering = ['-date']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+        ]
  
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.date} - {self.status}"
  
     def save(self, *args, **kwargs):
         if self.check_in and self.check_out:
-            from datetime import datetime, timedelta
+            from datetime import datetime
             ci = datetime.combine(self.date, self.check_in)
             co = datetime.combine(self.date, self.check_out)
             if co > ci:
@@ -285,6 +318,10 @@ class LeaveRequest(models.Model):
     class Meta:
         db_table = 'leave_requests'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['from_date', 'to_date']),
+        ]
  
     def __str__(self):
         return f"{self.user.get_full_name()} — {self.leave_type} ({self.from_date} to {self.to_date})"
@@ -330,7 +367,28 @@ class ImpersonationToken(models.Model):
     class Meta:
         db_table = 'impersonation_tokens'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['target_user', 'organization']),
+            models.Index(fields=['expires_at', 'used_at']),
+        ]
 
     def __str__(self):
         return f"{self.initiated_by.get_full_name()} → {self.target_user.get_full_name()} ({self.organization.name})"
  
+
+
+class UserTwoFactor(models.Model):
+    """A user's authenticator-app secret (encrypted, apps.core.crypto) and
+    hashed one-time backup codes. `enabled` only after they confirm a code."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='two_factor')
+    secret_encrypted = models.TextField(blank=True)
+    enabled = models.BooleanField(default=False)
+    enabled_at = models.DateTimeField(null=True, blank=True)
+    backup_codes = models.JSONField(default=list, blank=True)
+    last_used_step = models.BigIntegerField(null=True, blank=True)  # blocks reusing the same code
+
+    class Meta:
+        db_table = 'user_two_factor'
+
+    def __str__(self):
+        return f"2FA {'on' if self.enabled else 'pending'} — {self.user.email}"

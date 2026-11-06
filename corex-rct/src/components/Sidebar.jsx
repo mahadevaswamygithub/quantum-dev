@@ -1,17 +1,15 @@
 import React from 'react';
 import {
-  Building2, Users, Home, Settings,
-  ChevronLeft, ChevronRightIcon,
-  Briefcase, DollarSign, Clock, CalendarDays,
-  Shield, UserCircle, History, BedDouble, CalendarCheck
+  Building2, Users, Home, Settings, ChevronLeft, ChevronRightIcon, Briefcase, DollarSign, Clock, CalendarDays, Shield, UserCircle, History, BedDouble, CalendarCheck, Wallet, Star,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 
 const formatRole = (role = '') =>
   role.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 
-const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollapse }) => {
+const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
   // Pulled from context rather than threaded in as a prop — Sidebar is
@@ -20,6 +18,8 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
   // one more field needed solely for vertical-specific nav visibility.
   const { user } = useAuth();
   const isRoomBookingOrg = user?.org_type === 'ROOM_BOOKING';
+  // Staff see only what their role allows (apps.core.access → user.permissions).
+  const { can, canAny, isAdmin: isOrgAdmin } = usePermissions();
 
   // Dashboard's `to` is basePath itself (e.g. "/msp"), which is a path
   // prefix of every other nav item ("/msp/organizations", "/msp/users", …).
@@ -33,10 +33,6 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
   const isMSP = userRole === 'MSP_ADMIN' || userRole === 'MSP_USER';
   const isSTP = userRole === 'STP_ADMIN' || userRole === 'STP_USER';
   const isEmployee = userRole === 'EMPLOYEE';
-  // Activity log is an audit feature — same admin-only visibility the
-  // backend enforces (ActivityLogViewSet.get_queryset), so non-admins never
-  // see a nav link to a page that would just come back empty for them.
-  const isAdmin = userRole === 'MSP_ADMIN' || userRole === 'STP_ADMIN';
   const basePath = isMSP ? '/msp' : isSTP ? '/stp' : '/employee';
 
   const Tooltip = ({ label }) => (
@@ -91,26 +87,29 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
         <NavItem to={basePath} icon={Home} label="Dashboard" />
 
         {/* MSP: Organizations */}
-        {isMSP && (
+        {isMSP && can('organizations.view') && (
           <NavItem to={`${basePath}/organizations`} icon={Building2} label="Organizations" />
         )}
 
         {/* Users (MSP + STP) */}
-        {!isEmployee && (
+        {!isEmployee && can('users.view') && (
           <NavItem to={`${basePath}/users`} icon={Users} label="Users" />
         )}
 
-        {/* Activity Log (MSP/STP admins only) */}
-        {isAdmin && (
+        {/* Activity Log */}
+        {can('activity.view') && (
           <NavItem to={`${basePath}/activity`} icon={History} label="Activity Log" />
         )}
 
         {/* Room Booking vertical — STP staff of a ROOM_BOOKING org only */}
         {isSTP && isRoomBookingOrg && (
           <>
-            <NavItem to={`${basePath}/properties`} icon={Building2} label="Properties" />
-            <NavItem to={`${basePath}/rooms`} icon={BedDouble} label="Rooms" />
-            <NavItem to={`${basePath}/bookings`} icon={CalendarCheck} label="Bookings" />
+            {can('rooms.view') && <NavItem to={`${basePath}/properties`} icon={Building2} label="Properties" />}
+            {can('rooms.view') && <NavItem to={`${basePath}/rooms`} icon={BedDouble} label="Rooms" />}
+            {can('bookings.view') && <NavItem to={`${basePath}/bookings`} icon={CalendarCheck} label="Bookings" />}
+            {can('guests.view') && <NavItem to={`${basePath}/guests`} icon={UserCircle} label="Guests" />}
+            {can('payments.report') && <NavItem to={`${basePath}/collections`} icon={Wallet} label="Collections" />}
+            {can('reviews.view') && <NavItem to={`${basePath}/reviews`} icon={Star} label="Reviews" />}
           </>
         )}
 
@@ -125,8 +124,10 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
           </>
         )}
 
-        {/* Settings */}
-        <NavItem to={`${basePath}/settings`} icon={Settings} label="Settings" />
+        {/* Settings — organization-level; only roles with something to manage */}
+        {(isOrgAdmin || canAny('settings.manage', 'platform.view', 'users.view') || (isSTP && isRoomBookingOrg && can('bookings.view'))) && (
+          <NavItem to={`${basePath}/settings`} icon={Settings} label="Settings" />
+        )}
       </div>
 
       {/* Role Badge at bottom */}

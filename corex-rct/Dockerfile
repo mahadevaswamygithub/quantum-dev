@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
-# React (CRA) frontend.
-#   dev  — `npm start` (webpack-dev-server), source bind-mounted, hot reload
+# React (Vite) frontend.
+#   dev  — `npm start` (vite dev server), source bind-mounted, hot reload
 #   prod — `npm run build`, output served by nginx (see nginx.conf), which
 #          also reverse-proxies /api and /media to the backend container —
 #          so the SPA can call relative "/api" and needs no baked-in host.
@@ -27,7 +27,8 @@ FROM base AS build
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
 COPY . .
-# Baked into the JS bundle at build time (CRA can't read env at runtime).
+# Baked into the JS bundle at build time (Vite can't read env at runtime;
+# REACT_APP_* is exposed via envPrefix in vite.config.mjs).
 # Defaults to a relative path so nginx.conf's /api proxy handles it — override
 # with --build-arg REACT_APP_API_URL=https://your-host/api for a standalone
 # frontend deploy that talks to a differently-hosted backend.

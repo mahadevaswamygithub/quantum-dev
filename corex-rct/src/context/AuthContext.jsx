@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, userAPI } from '../services/api';
 import { tokenStorage } from '../services/api/tokenStorage';
 
 const AuthContext = createContext(null);
@@ -11,27 +11,51 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const storedUser = tokenStorage.get('user');
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        tokenStorage.clear();
-      }
+    if (!storedUser) {
+      setLoading(false);
+      return;
     }
-    setLoading(false);
+    let parsed;
+    try {
+      parsed = JSON.parse(storedUser);
+    } catch {
+      tokenStorage.clear();
+      setLoading(false);
+      return;
+    }
+    setUser(parsed);
+    // Refresh from the server so role/permission changes made since this
+    // session started take effect on the next page load (the stored copy is
+    // only as fresh as the last login).
+    userAPI.getCurrentUser()
+      .then(({ data }) => {
+        const fresh = { ...parsed, ...data };
+        setUser(fresh);
+        tokenStorage.setUser(fresh, tokenStorage.isImpersonating());
+      })
+      .catch(() => { /* offline or token expired: keep the stored copy; the API interceptor handles 401s */ })
+      .finally(() => setLoading(false));
   }, []);
 
   const login = async (email, password) => {
     try {
       const response = await authAPI.login({ email, password });
-      const { access, refresh, user: userData } = response.data;
-      tokenStorage.setAll({ accessToken: access, refreshToken: refresh, user: userData }, false);
-      setUser(userData);
-      setIsImpersonating(false);
-      return { success: true, user: userData };
+      // Password OK but a two-step code (or first-time setup) is needed.
+      if (response.data.mfa_required || response.data.mfa_setup_required) {
+        return { success: false, mfa: { step: response.data.mfa_required ? 'verify' : 'setup', token: response.data.mfa_token } };
+      }
+      return { success: true, user: completeLogin(response.data) };
     } catch (error) {
       return { success: false, error: error.response?.data?.error || 'Login failed' };
     }
+  };
+
+  /** Store tokens + user from a successful sign-in response (login, 2FA step). */
+  const completeLogin = ({ access, refresh, user: userData }) => {
+    tokenStorage.setAll({ accessToken: access, refreshToken: refresh, user: userData }, false);
+    setUser(userData);
+    setIsImpersonating(false);
+    return userData;
   };
 
   /** Exchanges a one-time impersonation code for a tab-scoped session (sessionStorage). */
@@ -93,7 +117,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={{
-      user, loading, login, loginWithImpersonationCode, register, logout, updateUser, setSession,
+      user, loading, login, completeLogin, loginWithImpersonationCode, register, logout, updateUser, setSession,
       getPortalRoute, isAuthenticated: !!user, isImpersonating,
     }}>
       {children}

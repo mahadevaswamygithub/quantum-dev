@@ -24,6 +24,7 @@ __pycache__/
 
 # Media/static — served from volumes at runtime, not baked in
 /staticfiles
+/media
 /profile_pictures
 /room_images
 /user_documents

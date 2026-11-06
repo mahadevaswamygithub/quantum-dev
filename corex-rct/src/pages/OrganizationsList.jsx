@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
+import { usePermissions } from '../hooks/usePermissions';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -19,6 +22,7 @@ import Avatar from '../components/common/Avatar';
 const PAGE_SIZE = 12;
 
 const OrganizationsList = () => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -55,6 +59,7 @@ const OrganizationsList = () => {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  const live = useAutoRefresh(fetchData);
 
   const filtered = organizations.filter(o => {
     const matchSearch = o.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -118,9 +123,12 @@ const OrganizationsList = () => {
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Organizations</h1>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {organizations.length} organizations</p>
               </div>
-              {isMSP && (
-                <Button icon={Plus} onClick={() => setShowAddModal(true)}>Add Organization</Button>
-              )}
+              <div className="flex items-center gap-3">
+                {isMSP && can('organizations.manage') && (
+                  <Button icon={Plus} onClick={() => setShowAddModal(true)}>Add Organization</Button>
+                )}
+                <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+              </div>
             </div>
 
             {/* Toolbar */}
@@ -181,7 +189,7 @@ const OrganizationsList = () => {
                     >
                       <Eye className="w-4 h-4 text-green-400" />
                     </button>
-                    {org.tenant_type === 'STP' && (
+                    {can('organizations.impersonate') && org.tenant_type === 'STP' && (
                       <button
                         onClick={e => handleImpersonate(org.id, e)}
                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
@@ -191,7 +199,7 @@ const OrganizationsList = () => {
                       </button>
                     )}
                     <button
-                      onClick={e => handleToggle(org.id, e)}
+                      hidden={!can('organizations.manage')} onClick={e => handleToggle(org.id, e)}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title={org.is_active ? 'Deactivate' : 'Activate'}
                     >
@@ -200,14 +208,14 @@ const OrganizationsList = () => {
                         : <ToggleLeft className="w-4 h-4 text-slate-400" />}
                     </button>
                     <button
-                      onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowEditModal(true); }}
+                      hidden={!can('organizations.manage')} onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowEditModal(true); }}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title="Edit"
                     >
                       <Edit className="w-4 h-4 text-blue-400" />
                     </button>
                     <button
-                      onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowDeleteModal(true); }}
+                      hidden={!can('organizations.manage')} onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowDeleteModal(true); }}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title="Delete"
                     >
@@ -332,18 +340,18 @@ const OrganizationsList = () => {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-1">
-                            {org.tenant_type === 'STP' && (
+                            {can('organizations.impersonate') && org.tenant_type === 'STP' && (
                               <button onClick={e => handleImpersonate(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Impersonate admin (opens in a new tab)">
                                 <LogIn className="w-4 h-4 text-purple-400" />
                               </button>
                             )}
-                            <button onClick={e => handleToggle(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={org.is_active ? 'Deactivate' : 'Activate'}>
+                            <button hidden={!can('organizations.manage')} onClick={e => handleToggle(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={org.is_active ? 'Deactivate' : 'Activate'}>
                               {org.is_active ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
                             </button>
-                            <button onClick={() => { setSelectedOrg(org); setShowEditModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
+                            <button hidden={!can('organizations.manage')} onClick={() => { setSelectedOrg(org); setShowEditModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
                               <Edit className="w-4 h-4 text-blue-400" />
                             </button>
-                            <button onClick={() => { setSelectedOrg(org); setShowDeleteModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
+                            <button hidden={!can('organizations.manage')} onClick={() => { setSelectedOrg(org); setShowDeleteModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
                               <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
                             <button onClick={() => navigate(`${basePath}/organizations/${org.id}`)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="View Details">

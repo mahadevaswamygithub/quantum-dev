@@ -24,20 +24,24 @@ import UserDetail from './pages/UserDetail';
 import OrganizationsList from './pages/OrganizationsList';
 import OrganizationDetail from './pages/OrganizationDetail';
 import Settings from './pages/Settings';
-import MyProfile from './pages/MyProfile';
+import ProfilePage from './pages/ProfilePage';
 import ActivityLog from './pages/ActivityLog';
 import PropertiesList from './pages/PropertiesList';
 import RoomsList from './pages/RoomsList';
 import BookingsList from './pages/BookingsList';
+import GuestsList from './pages/GuestsList';
+import CollectionsPage from './pages/CollectionsPage';
+import ReviewsPage from './pages/ReviewsPage';
 
 // Room-booking customer portal (public-ish, org-scoped by URL)
 import BookingHome from './pages/BookingHome';
 import CustomerLogin from './pages/CustomerLogin';
 import CustomerRegister from './pages/CustomerRegister';
-import PropertyBrowse from './pages/PropertyBrowse';
-import RoomBrowse from './pages/RoomBrowse';
-import RoomDetail from './pages/RoomDetail';
-import MyBookings from './pages/MyBookings';
+import GuestHome from './pages/guest/GuestHome';
+import GuestRoom from './pages/guest/GuestRoom';
+import MyTrips from './pages/guest/MyTrips';
+import GuestProfile from './pages/guest/GuestProfile';
+import GuestDashboard from './pages/guest/GuestDashboard';
 import CustomerPrivateRoute from './components/CustomerPrivateRoute';
 
 // Employee Portal
@@ -46,7 +50,6 @@ import EmployeePortal from './pages/EmployeePortal';
 const MSP_ROLES = ['MSP_ADMIN', 'MSP_USER'];
 const STP_ROLES = ['STP_ADMIN', 'STP_USER'];
 // Activity log is admin-only — matches ActivityLogViewSet.get_queryset on the backend.
-const ADMIN_ROLES = ['MSP_ADMIN', 'STP_ADMIN'];
 
 const AppRoutes = () => {
   const { user } = useAuth();
@@ -63,7 +66,7 @@ const AppRoutes = () => {
       // fall to the '/login' default below, and /login's own
       // `user ? <Navigate to={defaultRoute()} /> : <Login />` would then
       // redirect straight back to itself — an infinite loop.
-      case 'CUSTOMER': return `/book/${user.organization_id}`;
+      case 'CUSTOMER': return '/book/me';
       default: return '/login';
     }
   };
@@ -78,35 +81,48 @@ const AppRoutes = () => {
 
       {/* ── Room-booking customer portal (separate from the admin login above) ── */}
       <Route path="/book" element={<BookingHome />} />
+      <Route path="/book/login" element={<CustomerLogin />} />
+      <Route path="/book/register" element={<CustomerRegister />} />
       <Route path="/book/:orgId/login" element={<CustomerLogin />} />
       <Route path="/book/:orgId/register" element={<CustomerRegister />} />
-      <Route path="/book/:orgId" element={<CustomerPrivateRoute><PropertyBrowse /></CustomerPrivateRoute>} />
-      <Route path="/book/:orgId/properties/:propertyId" element={<CustomerPrivateRoute><RoomBrowse /></CustomerPrivateRoute>} />
-      <Route path="/book/:orgId/properties/:propertyId/rooms/:roomId" element={<CustomerPrivateRoute><RoomDetail /></CustomerPrivateRoute>} />
-      <Route path="/book/:orgId/my-bookings" element={<CustomerPrivateRoute><MyBookings /></CustomerPrivateRoute>} />
+      {/* The guest's own account — not tied to any one property */}
+      <Route path="/book/me" element={<CustomerPrivateRoute><GuestDashboard /></CustomerPrivateRoute>} />
+      <Route path="/book/me/trips" element={<CustomerPrivateRoute><MyTrips /></CustomerPrivateRoute>} />
+      <Route path="/book/me/profile" element={<CustomerPrivateRoute><GuestProfile /></CustomerPrivateRoute>} />
+      {/* Public: anyone can browse; sign-in is asked for only at "Reserve" */}
+      <Route path="/book/:orgId" element={<GuestHome />} />
+      <Route path="/book/:orgId/properties/:propertyId" element={<GuestHome />} />
+      <Route path="/book/:orgId/rooms/:roomId" element={<GuestRoom />} />
+      <Route path="/book/:orgId/properties/:propertyId/rooms/:roomId" element={<GuestRoom />} />
+      {/* Signed-in guests of this property */}
+      {/* Old per-property account URLs → the shared account pages */}
+      <Route path="/book/:orgId/home" element={<Navigate to="/book/me" replace />} />
+      <Route path="/book/:orgId/my-bookings" element={<Navigate to="/book/me/trips" replace />} />
+      <Route path="/book/:orgId/profile" element={<Navigate to="/book/me/profile" replace />} />
 
-      {/* ── Shared: personal profile page (Navbar only, no Sidebar — distinct
-           from the admin Settings page, which is org-management and STP/MSP
-           don't share). Employee has its own equivalent at /employee/profile. */}
-      <Route path="/profile" element={<PrivateRoute allowedRoles={[...MSP_ROLES, ...STP_ROLES]}><MyProfile /></PrivateRoute>} />
+      {/* The signed-in staff member's own profile (Settings is organization-level). */}
+      <Route path="/profile" element={<PrivateRoute allowedRoles={[...MSP_ROLES, ...STP_ROLES]}><ProfilePage /></PrivateRoute>} />
 
       {/* ── MSP ── */}
       <Route path="/msp" element={<PrivateRoute allowedRoles={MSP_ROLES}><MSPDashboard /></PrivateRoute>} />
-      <Route path="/msp/organizations" element={<PrivateRoute allowedRoles={MSP_ROLES}><OrganizationsList /></PrivateRoute>} />
-      <Route path="/msp/organizations/:id" element={<PrivateRoute allowedRoles={MSP_ROLES}><OrganizationDetail /></PrivateRoute>} />
-      <Route path="/msp/users" element={<PrivateRoute allowedRoles={MSP_ROLES}><UsersList /></PrivateRoute>} />
-      <Route path="/msp/users/:id" element={<PrivateRoute allowedRoles={MSP_ROLES}><UserDetail /></PrivateRoute>} />
-      <Route path="/msp/activity" element={<PrivateRoute allowedRoles={ADMIN_ROLES}><ActivityLog /></PrivateRoute>} />
+      <Route path="/msp/organizations" element={<PrivateRoute allowedRoles={MSP_ROLES} perm="organizations.view"><OrganizationsList /></PrivateRoute>} />
+      <Route path="/msp/organizations/:id" element={<PrivateRoute allowedRoles={MSP_ROLES} perm="organizations.view"><OrganizationDetail /></PrivateRoute>} />
+      <Route path="/msp/users" element={<PrivateRoute allowedRoles={MSP_ROLES} perm="users.view"><UsersList /></PrivateRoute>} />
+      <Route path="/msp/users/:id" element={<PrivateRoute allowedRoles={MSP_ROLES} perm="users.view"><UserDetail /></PrivateRoute>} />
+      <Route path="/msp/activity" element={<PrivateRoute allowedRoles={MSP_ROLES} perm="activity.view"><ActivityLog /></PrivateRoute>} />
       <Route path="/msp/settings" element={<PrivateRoute allowedRoles={MSP_ROLES}><Settings /></PrivateRoute>} />
 
       {/* ── STP ── */}
       <Route path="/stp" element={<PrivateRoute allowedRoles={STP_ROLES}><STPDashboard /></PrivateRoute>} />
-      <Route path="/stp/users" element={<PrivateRoute allowedRoles={STP_ROLES}><UsersList /></PrivateRoute>} />
-      <Route path="/stp/users/:id" element={<PrivateRoute allowedRoles={STP_ROLES}><UserDetail /></PrivateRoute>} />
-      <Route path="/stp/activity" element={<PrivateRoute allowedRoles={ADMIN_ROLES}><ActivityLog /></PrivateRoute>} />
-      <Route path="/stp/properties" element={<PrivateRoute allowedRoles={STP_ROLES}><PropertiesList /></PrivateRoute>} />
-      <Route path="/stp/rooms" element={<PrivateRoute allowedRoles={STP_ROLES}><RoomsList /></PrivateRoute>} />
-      <Route path="/stp/bookings" element={<PrivateRoute allowedRoles={STP_ROLES}><BookingsList /></PrivateRoute>} />
+      <Route path="/stp/users" element={<PrivateRoute allowedRoles={STP_ROLES} perm="users.view"><UsersList /></PrivateRoute>} />
+      <Route path="/stp/users/:id" element={<PrivateRoute allowedRoles={STP_ROLES} perm="users.view"><UserDetail /></PrivateRoute>} />
+      <Route path="/stp/activity" element={<PrivateRoute allowedRoles={STP_ROLES} perm="activity.view"><ActivityLog /></PrivateRoute>} />
+      <Route path="/stp/properties" element={<PrivateRoute allowedRoles={STP_ROLES} perm="rooms.view"><PropertiesList /></PrivateRoute>} />
+      <Route path="/stp/rooms" element={<PrivateRoute allowedRoles={STP_ROLES} perm="rooms.view"><RoomsList /></PrivateRoute>} />
+      <Route path="/stp/bookings" element={<PrivateRoute allowedRoles={STP_ROLES} perm="bookings.view"><BookingsList /></PrivateRoute>} />
+      <Route path="/stp/guests" element={<PrivateRoute allowedRoles={STP_ROLES} perm="guests.view"><GuestsList /></PrivateRoute>} />
+      <Route path="/stp/collections" element={<PrivateRoute allowedRoles={STP_ROLES} perm="payments.report"><CollectionsPage /></PrivateRoute>} />
+      <Route path="/stp/reviews" element={<PrivateRoute allowedRoles={STP_ROLES} perm="reviews.view"><ReviewsPage /></PrivateRoute>} />
       <Route path="/stp/settings" element={<PrivateRoute allowedRoles={STP_ROLES}><Settings /></PrivateRoute>} />
 
       {/* ── Employee Portal ── */}

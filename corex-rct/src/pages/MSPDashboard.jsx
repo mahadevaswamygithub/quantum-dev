@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
@@ -6,7 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { tenantAPI, userAPI } from '../services/api';
 import { Building2, Users, TrendingUp } from 'lucide-react';
 import WorldMap from '../components/WorldMap';
-import { ORG_TYPES } from '../constants/orgTypes';
+import { ORG_TYPES, AVAILABLE_ORG_TYPES } from '../constants/orgTypes';
 
 const MSPDashboard = () => {
   const { user } = useAuth();
@@ -31,6 +33,7 @@ const MSPDashboard = () => {
       setLoading(false);
     }
   };
+  const live = useAutoRefresh(fetchData, { interval: 60000 });
 
   const activeOrgs = organizations.filter(o => o.is_active).length;
   const activeUsers = users.filter(u => u.is_active).length;
@@ -41,7 +44,7 @@ const MSPDashboard = () => {
   const orgTypeCounts = ORG_TYPES.map(t => ({
     ...t,
     count: organizations.filter(o => o.org_type === t.value).length,
-  }));
+  })).filter(t => AVAILABLE_ORG_TYPES.includes(t) || t.count > 0);
 
   const stats = [
     { title: 'Organizations', value: organizations.length, sub: `${activeOrgs} active`, icon: Building2, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-500/10' },
@@ -65,9 +68,12 @@ const MSPDashboard = () => {
 
         <div className="flex-1 p-6 overflow-y-auto min-h-0">
           {/* Header */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">MSP Dashboard</h1>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Welcome back, {user.first_name}!</p>
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white">MSP Dashboard</h1>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Welcome back, {user.first_name}!</p>
+            </div>
+            <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
           </div>
 
           {/* Stats */}
