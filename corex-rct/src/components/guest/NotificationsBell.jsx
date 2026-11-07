@@ -61,6 +61,22 @@ const NotificationsBell = ({
     return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', esc); };
   }, [open]);
 
+  // Phones: the panel is anchored to the bell, which sits mid-header, so a
+  // right-aligned panel runs off the left edge. Stretch it across the screen
+  // (12px from each side) by offsetting from the bell's position instead.
+  const [phoneStyle, setPhoneStyle] = useState(undefined);
+  useEffect(() => {
+    if (!open) return undefined;
+    const place = () => {
+      const box = ref.current?.getBoundingClientRect();
+      if (!box || window.innerWidth >= 640) { setPhoneStyle(undefined); return; }
+      setPhoneStyle({ left: 12 - box.left, right: 'auto', width: window.innerWidth - 24 });
+    };
+    place();
+    window.addEventListener('resize', place);
+    return () => window.removeEventListener('resize', place);
+  }, [open]);
+
   const unread = items.filter(i => !seen.has(i.id)).length;
   const markAll = () => {
     const next = new Set([...seen, ...items.map(i => i.id)]);
@@ -86,7 +102,7 @@ const NotificationsBell = ({
         )}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-[min(calc(100vw-2rem),24rem)] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl z-50 overflow-hidden animate-pop-in motion-reduce:animate-none origin-top-right">
+        <div style={phoneStyle} className="absolute right-0 mt-2 w-[min(calc(100vw-2rem),24rem)] rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xl z-50 overflow-hidden animate-pop-in motion-reduce:animate-none origin-top-right">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 dark:border-slate-700">
             <p className="font-bold text-slate-900 dark:text-white">Notifications</p>
             {unread > 0 && <button type="button" onClick={markAll} className="text-xs font-semibold text-green-700 dark:text-green-400 hover:underline">Mark all as read</button>}

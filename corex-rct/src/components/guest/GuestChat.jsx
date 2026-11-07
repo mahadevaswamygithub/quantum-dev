@@ -60,6 +60,11 @@ const BookingMini = ({ b }) => (
 const GuestChat = ({ org = null }) => {
   const { user } = useGuest();
   const location = useLocation();
+  // Room pages have a fixed "Reserve" bar at the bottom below the lg breakpoint
+  // (GuestRoom): sit above it there instead of covering the button.
+  const aboveBookingBar = /\/rooms\/[^/]+\/?$/.test(location.pathname);
+  const fabPos = aboveBookingBar ? 'bottom-28 lg:bottom-6' : 'bottom-6';
+  const panelPos = aboveBookingBar ? 'bottom-48 lg:bottom-24' : 'bottom-24';
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState(load);
   const [input, setInput] = useState('');
@@ -126,7 +131,7 @@ const GuestChat = ({ org = null }) => {
         <section
           role="dialog"
           aria-label="Chat with the CoreX Stays assistant"
-          className="fixed z-50 bottom-24 right-3 left-3 sm:left-auto sm:right-6 sm:w-[400px] h-[min(600px,calc(100vh-8rem))] flex flex-col rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-black/25 origin-bottom-right animate-pop-in motion-reduce:animate-none"
+          className={`fixed z-50 ${panelPos} right-3 left-3 sm:left-auto sm:right-6 sm:w-[400px] ${aboveBookingBar ? 'h-[min(600px,calc(100vh-14rem))] lg:h-[min(600px,calc(100vh-8rem))]' : 'h-[min(600px,calc(100vh-8rem))]'} flex flex-col rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl shadow-black/25 origin-bottom-right animate-pop-in motion-reduce:animate-none`}
         >
           <header className="relative flex items-center gap-3 px-4 py-3.5 bg-slate-950 text-white">
             <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-green-500/30 via-teal-500/10 to-blue-500/30" />
@@ -215,7 +220,7 @@ const GuestChat = ({ org = null }) => {
         onClick={() => setOpen(o => !o)}
         aria-label={open ? 'Close chat' : 'Chat with us'}
         aria-expanded={open}
-        className="fixed z-50 bottom-6 right-6 group flex items-center gap-2 h-14 pl-4 pr-5 rounded-full bg-gradient-to-r from-green-500 to-blue-500 text-white font-semibold shadow-xl shadow-green-500/30 hover:shadow-2xl hover:scale-[1.03] transition-all"
+        className={`fixed z-50 ${fabPos} right-4 sm:right-6 group flex items-center gap-2 h-14 pl-4 pr-5 rounded-full bg-gradient-to-r from-green-500 to-blue-500 text-white font-semibold shadow-xl shadow-green-500/30 hover:shadow-2xl hover:scale-[1.03] transition-all`}
       >
         {!open && <span aria-hidden="true" className="absolute inset-0 rounded-full bg-green-400/40 animate-ping [animation-duration:2.5s] motion-reduce:hidden" />}
         <span className="relative">{open ? <X className="w-6 h-6" /> : <MessageCircle className="w-6 h-6" />}</span>

@@ -21,7 +21,7 @@ export const BrandMark = ({ org, light = false }) => (
     {org ? (
       <span className={`font-bold truncate max-w-[14rem] ${light ? 'text-white' : 'text-slate-900 dark:text-white'}`}>{org.name}</span>
     ) : (
-      <span className={`text-lg font-extrabold tracking-tight ${light ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
+      <span className={`min-w-0 truncate text-lg font-extrabold tracking-tight whitespace-nowrap ${light ? 'text-white' : 'text-slate-900 dark:text-white'}`}>
         {SITE_NAME.split(' ')[0]} <span className="text-brand-500">{SITE_NAME.split(' ').slice(1).join(' ')}</span>
       </span>
     )}
@@ -40,7 +40,19 @@ const useDismiss = (open, setOpen, ref) => {
 };
 
 /** Light/dark switch: one obvious icon button in the header. */
-export const ThemeButton = ({ light }) => {
+/** Full-width theme switch for the phone menu (the icon button is hidden there). */
+const ThemeMenuRow = () => {
+  const { theme, setMode } = useTheme();
+  const dark = theme === 'dark';
+  return (
+    <button type="button" onClick={() => setMode(dark ? 'light' : 'dark')}
+      className="flex w-full items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700">
+      {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />} {dark ? 'Light mode' : 'Dark mode'}
+    </button>
+  );
+};
+
+export const ThemeButton = ({ light, className = '' }) => {
   const { theme, setMode } = useTheme();
   const dark = theme === 'dark';
   return (
@@ -49,7 +61,7 @@ export const ThemeButton = ({ light }) => {
       onClick={() => setMode(dark ? 'light' : 'dark')}
       aria-label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
       title={dark ? 'Light mode' : 'Dark mode'}
-      className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-colors ${
+      className={`${className} w-10 h-10 flex-shrink-0 rounded-xl border flex items-center justify-center transition-colors ${
         light ? 'border-white/20 bg-white/10 text-white hover:bg-white/20' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-brand-600 dark:hover:text-brand-300'
       }`}
     >
@@ -71,7 +83,7 @@ const UserMenu = ({ user, onLogout, light }) => {
         onClick={() => setOpen(o => !o)}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex items-center gap-2 pl-1 pr-2.5 py-1 rounded-full border transition-colors ${
+        className={`flex items-center gap-2 p-1 sm:pr-2.5 rounded-full border transition-colors ${
           light ? 'border-white/25 bg-white/10 hover:bg-white/20 text-white' : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
         }`}
       >
@@ -82,7 +94,7 @@ const UserMenu = ({ user, onLogout, light }) => {
           bg="bg-gradient-to-br from-brand-400 to-blue-500"
         />
         <span className="hidden sm:block text-sm font-semibold max-w-[8rem] truncate">{user.first_name || 'Account'}</span>
-        <ChevronDown className={`w-4 h-4 opacity-70 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`hidden sm:block w-4 h-4 opacity-70 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div role="menu" className="absolute right-0 mt-2 w-60 p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl z-50">
@@ -165,8 +177,9 @@ const SiteHeader = ({ org = null, overlay = false, bare = false }) => {
           <nav aria-label="Main" className="hidden md:flex items-center gap-1">
             {links.map(l => <NavLink key={l.to} to={l.to} end={l.end} className={linkCls}>{l.label}</NavLink>)}
           </nav>
-          <div className="flex items-center gap-2">
-            <ThemeButton light={overlay} />
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {/* Phones: in the ☰ menu instead, so the bar fits. */}
+            <ThemeButton light={overlay} className="hidden sm:flex" />
             {isGuest && <NotificationsBell light={overlay} />}
             {isGuest ? (
               <UserMenu user={user} onLogout={handleLogout} light={overlay} />
@@ -175,7 +188,8 @@ const SiteHeader = ({ org = null, overlay = false, bare = false }) => {
                 <Link to={`${authBase}/login?next=${next}`} className={`hidden sm:block px-3 py-2 text-sm font-semibold ${overlay ? 'text-white/90 hover:text-white' : 'text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white'}`}>
                   Log in
                 </Link>
-                <Link to={`${authBase}/register?next=${next}`} className="px-4 py-2 text-sm font-semibold rounded-xl bg-gradient-to-r from-brand-500 to-blue-500 hover:from-brand-600 hover:to-blue-600 text-white shadow-sm">
+                {/* Phones: in the ☰ menu instead, so the bar doesn't wrap. */}
+                <Link to={`${authBase}/register?next=${next}`} className="hidden sm:block whitespace-nowrap px-4 py-2 text-sm font-semibold rounded-xl bg-gradient-to-r from-brand-500 to-blue-500 hover:from-brand-600 hover:to-blue-600 text-white shadow-sm">
                   Sign up
                 </Link>
               </>
@@ -202,8 +216,12 @@ const SiteHeader = ({ org = null, overlay = false, bare = false }) => {
           {l.label}
         </NavLink>
       ))}
+      <div className="sm:hidden"><ThemeMenuRow /></div>
       {!isGuest && (
-        <Link to={`${authBase}/login?next=${next}`} className="block px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 dark:text-slate-200">Log in</Link>
+        <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700 grid grid-cols-2 gap-2">
+          <Link to={`${authBase}/login?next=${next}`} className="text-center px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-700 bg-slate-100 dark:bg-slate-700 dark:text-slate-200">Log in</Link>
+          <Link to={`${authBase}/register?next=${next}`} className="text-center px-3 py-2.5 rounded-lg text-sm font-semibold text-white bg-gradient-to-r from-brand-500 to-blue-500">Sign up</Link>
+        </div>
       )}
     </nav>
   );
