@@ -5,13 +5,13 @@ import { X } from 'lucide-react';
  * Shared modal overlay + header + close button shell, extracted from the
  * near-identical private `ModalWrapper` previously duplicated in
  * UserModals.js and OrganizationModals.jsx (byte-identical outer overlay
- * div in both; this keeps UserModals' slightly fuller version — `wide`
- * variant, scrollable body, sticky header — since it's a strict superset
+ * div in both; this keeps UserModals' slightly fuller version - `wide`
+ * variant, scrollable body, sticky header - since it's a strict superset
  * and behaves identically to the plain version for content short enough
  * to never hit the 90vh cap, which covers every existing usage).
  *
  * NOTE: ForgotPasswordModal.js intentionally keeps its own distinct,
- * larger modal treatment (different padding/rounding/overlay opacity) —
+ * larger modal treatment (different padding/rounding/overlay opacity) -
  * not unified here since forcing it into this shape would be a visible
  * appearance change, not a pure de-dup.
  */

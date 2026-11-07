@@ -1,4 +1,4 @@
-"""Room-booking vertical — mounted at /api/bookings/.
+"""Room-booking vertical - mounted at /api/bookings/.
 
 /api/bookings/customers/register/            POST  (AllowAny) self-service customer sign-up
 /api/bookings/settings/                      GET (staff), PATCH/PUT (STP admin)
@@ -33,7 +33,12 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
+from .staff_views import (
+    BookingsExportView, CollectionsExportView, DashboardView, RoomCalendarView, StaffNotificationsView, WalkInBookingView,
+)
+from .guest_views import GuestNotificationsView, WishlistItemView, WishlistView
 from .views import (
+    GuestAssistantView,
     PropertyViewSet, RoomViewSet, BookingViewSet, CustomerRegisterView, BookingSettingsView,
     RazorpayWebhookView, PublicPropertyListView, PublicRoomListView, GuestListView,
     CollectionReportView, StaffReviewListView, StaffReviewReplyView, PublicReviewListView,
@@ -54,6 +59,16 @@ urlpatterns = [
     path('reviews/<int:review_id>/reply/', StaffReviewReplyView.as_view(), name='booking-review-reply'),
     path('public/<int:org_id>/reviews/', PublicReviewListView.as_view(), name='public-reviews'),
     path('razorpay/webhook/', RazorpayWebhookView.as_view(), name='razorpay-webhook'),
+    path('assistant/', GuestAssistantView.as_view(), name='guest-assistant'),
+    path('wishlist/', WishlistView.as_view(), name='guest-wishlist'),
+    path('wishlist/<int:org_id>/', WishlistItemView.as_view(), name='guest-wishlist-item'),
+    path('me/notifications/', GuestNotificationsView.as_view(), name='guest-notifications'),
+    path('dashboard/', DashboardView.as_view(), name='staff-dashboard'),
+    path('calendar/', RoomCalendarView.as_view(), name='room-calendar'),
+    path('walk_in/', WalkInBookingView.as_view(), name='walk-in-booking'),
+    path('staff/notifications/', StaffNotificationsView.as_view(), name='staff-notifications'),
+    path('export/bookings.csv', BookingsExportView.as_view(), name='export-bookings'),
+    path('export/collections.csv', CollectionsExportView.as_view(), name='export-collections'),
     path('public/<int:org_id>/properties/', PublicPropertyListView.as_view(), name='public-properties'),
     path('public/<int:org_id>/rooms/', PublicRoomListView.as_view(), name='public-rooms'),
     path('public/<int:org_id>/rooms/<int:room_id>/', PublicRoomListView.as_view(), name='public-room-detail'),

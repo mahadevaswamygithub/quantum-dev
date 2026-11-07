@@ -5,7 +5,7 @@ Login with 2FA is two calls:
                               (or {mfa_setup_required, mfa_token} for a role
                               that must use 2FA but hasn't set it up yet)
   2. POST /auth/2fa/verify/   mfa_token + code   → the usual tokens
-The mfa_token is a signed, 5-minute, single-purpose ticket — it proves the
+The mfa_token is a signed, 5-minute, single-purpose ticket - it proves the
 password was right, nothing more.
 """
 import hashlib

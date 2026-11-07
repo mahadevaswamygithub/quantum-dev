@@ -79,7 +79,7 @@ class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSer
                 "MSP cannot have a parent organization"
             )
 
-        # org_type is a business vertical for STP orgs only — MSP orgs are
+        # org_type is a business vertical for STP orgs only - MSP orgs are
         # purely administrative and never get one.
         if data['tenant_type'] == 'STP' and not data.get('org_type'):
             raise serializers.ValidationError(
@@ -98,7 +98,7 @@ class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSer
         name = validated_data.get('name')
 
         # Derive schema name (and from it, the domain) from the organization
-        # name — de-duplicated in case two orgs share a name/slug.
+        # name - de-duplicated in case two orgs share a name/slug.
         base_schema_name = name.lower().replace(' ', '_').replace('-', '_')
         schema_name = base_schema_name
         suffix = 1
@@ -149,7 +149,7 @@ class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSer
 class OwnOrganizationSerializer(RoundedCoordinatesMixin, serializers.ModelSerializer):
     """Settings → Organization: the requesting admin's *own* org (which an
     MSP's organization list deliberately excludes). Structural fields
-    (tenant/org type, parent, active flag) are read-only here — those are
+    (tenant/org type, parent, active flag) are read-only here - those are
     managed by whoever administers the org, not by the org itself."""
     logo = serializers.SerializerMethodField()
     cover_image = serializers.SerializerMethodField()

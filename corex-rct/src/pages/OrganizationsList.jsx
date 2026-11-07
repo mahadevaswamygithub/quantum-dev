@@ -31,7 +31,7 @@ const OrganizationsList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
-  const [viewMode, setViewMode] = useState('table'); // 'card' | 'table' — table is the proper list; card grid stays available via the toggle
+  const [viewMode, setViewMode] = useState('table'); // 'card' | 'table' - table is the proper list; card grid stays available via the toggle
   const [page, setPage] = useState(1);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -67,7 +67,7 @@ const OrganizationsList = () => {
     return matchSearch && matchStatus;
   });
 
-  // Filters reshuffle the result set — back to page 1 so pagination doesn't
+  // Filters reshuffle the result set - back to page 1 so pagination doesn't
   // land on an out-of-range/empty page.
   useEffect(() => { setPage(1); }, [searchTerm, filterStatus]);
 
@@ -116,7 +116,7 @@ const OrganizationsList = () => {
         />
 
         <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
-          {/* Static header + toolbar — only the records below scroll */}
+          {/* Static header + toolbar - only the records below scroll */}
           <div className="flex-shrink-0">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -159,7 +159,7 @@ const OrganizationsList = () => {
             </SearchFilterBar>
           </div>
 
-          {/* Scrollable records — this wrapper only bounds the height; each
+          {/* Scrollable records - this wrapper only bounds the height; each
               view below owns its own single overflow-auto element sized via
               h-full, so a sticky thead (Table View) has one real scrolling
               ancestor to stick within instead of two nested ones. */}

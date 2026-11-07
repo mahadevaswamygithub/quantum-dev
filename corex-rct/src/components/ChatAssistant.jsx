@@ -10,7 +10,7 @@ document.head.appendChild(fontLink);
 
 /* ─── Animations + theme tokens ──────────────────────────────────────────────
    Colors are CSS custom properties, flipped by the SAME `dark` class
-   ThemeContext already toggles on <html> for the rest of the app — so this
+   ThemeContext already toggles on <html> for the rest of the app - so this
    widget follows the app's light/dark switch instead of always being dark. */
 const styleEl = document.createElement("style");
 styleEl.textContent = `
@@ -129,9 +129,9 @@ const TOOL_LABELS = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   COREX LOGO  — custom SVG mark
+   COREX LOGO  - custom SVG mark
    Concept: two interlocked C-brackets forming an X shape with
-   circuit-node dots at each terminal — reads as "CX" and feels
+   circuit-node dots at each terminal - reads as "CX" and feels
    technical / networked, nothing like Gemini's star.
 ───────────────────────────────────────────────────────────────────────── */
 function CoreXLogo({ size = 24, animated = false }) {
@@ -287,7 +287,7 @@ function useChat(sid) {
       }
     } catch(e) {
       if (e.name === "AbortError") {
-        // User hit Stop — keep whatever partial text already streamed in
+        // User hit Stop - keep whatever partial text already streamed in
         // rather than treating it as a failure.
         setMsgs(p=>p.map(m=>m.streaming?{...m,streaming:false,stopped:true}:m));
       } else {
@@ -299,7 +299,7 @@ function useChat(sid) {
   const stop = useCallback(() => { abortRef.current?.abort(); },[]);
 
   const clear = useCallback(async()=>{
-    // Optimistic — clear the UI instantly instead of waiting on the
+    // Optimistic - clear the UI instantly instead of waiting on the
     // network round-trip (Django's session-delete also best-effort clears
     // the orchestrator's memory server-side, which was making the button
     // feel laggy). The server call still happens, just not blocking the UI.
@@ -342,7 +342,7 @@ function Markdown({text,isUser}){
 
 /* ─── Thinking indicator ─────────────────────────────────────────────────── *
    Replaces a generic three-dot pulse with something that's actually
-   CoreX's own — the same orbiting logo mark used on the FAB, plus a
+   CoreX's own - the same orbiting logo mark used on the FAB, plus a
    rotating line of flavor text (à la Claude Code's CLI spinner), so it
    reads as "the assistant is working" rather than a stock loading widget. */
 const THINKING_PHRASES = [
@@ -421,7 +421,7 @@ function Bubble({msg,isLast}){
 
   const copy = async ()=>{
     try{ await navigator.clipboard.writeText(msg.content); setCopied(true); setTimeout(()=>setCopied(false),1500); }
-    catch{ /* clipboard permission denied — fail silently, nothing to recover */ }
+    catch{ /* clipboard permission denied - fail silently, nothing to recover */ }
   };
 
   return (
@@ -827,7 +827,7 @@ export default function ChatAssistant({sessionId:propSid,user}){
           :<>
             {msgs.map((m,i)=>{
               // Hide the still-empty placeholder bubble while nothing has
-              // streamed in yet — ThinkingIndicator/ToolPill below covers
+              // streamed in yet - ThinkingIndicator/ToolPill below covers
               // that state instead of showing a bare blinking cursor.
               if(m.streaming&&m.content==="") return null;
               return <Bubble key={m.id} msg={m} isLast={i===msgs.length-1}/>;

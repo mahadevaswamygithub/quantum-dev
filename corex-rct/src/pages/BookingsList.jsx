@@ -11,11 +11,14 @@ import EmptyState from '../components/common/EmptyState';
 import SearchFilterBar from '../components/common/SearchFilterBar';
 import BookingHistoryModal from '../components/BookingHistoryModal';
 import RecordPaymentModal from '../components/RecordPaymentModal';
+import CancelRequestDecisionModal from '../components/CancelRequestDecisionModal';
+import WalkInModal from '../components/WalkInModal';
+import { downloadBlob } from '../utils/downloadFile';
 import { downloadVoucher } from '../utils/downloadVoucher';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { bookingAPI } from '../services/api';
-import { CalendarCheck, Check, LogIn, LogOut, Ban, RotateCcw, History, Wallet, Download } from 'lucide-react';
+import { CalendarCheck, Check, LogIn, LogOut, Ban, RotateCcw, History, Wallet, Download, MessageSquareWarning, UserPlus, FileDown } from 'lucide-react';
 
 const STATUS_TONE = { PENDING: 'amber', CONFIRMED: 'blue', CHECKED_IN: 'green', CHECKED_OUT: 'slate', CANCELLED: 'red' };
 const STATUS_LABEL = { PENDING: 'Pending Payment', CONFIRMED: 'Confirmed', CHECKED_IN: 'Checked In', CHECKED_OUT: 'Checked Out', CANCELLED: 'Cancelled' };
@@ -31,6 +34,14 @@ const BookingsList = () => {
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [historyId, setHistoryId] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [decideFor, setDecideFor] = useState(null);
+  const [walkIn, setWalkIn] = useState(false);
+  const exportCsv = async () => {
+    try {
+      const { data } = await bookingAPI.exportBookingsCsv({});
+      downloadBlob(data, `bookings-last-30-days.csv`);
+    } catch { alert('Could not export bookings.'); }
+  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -43,7 +54,10 @@ const BookingsList = () => {
   useEffect(() => { fetchData(); }, [fetchData]);
   const live = useAutoRefresh(fetchData, { interval: 30000 });
 
-  const filtered = statusFilter === 'ALL' ? bookings : bookings.filter(b => b.status === statusFilter);
+  const openRequests = bookings.filter(b => b.cancel_request_status === 'PENDING');
+  const filtered = statusFilter === 'ALL' ? bookings
+    : statusFilter === 'CANCEL_REQUESTS' ? openRequests
+    : bookings.filter(b => b.status === statusFilter);
 
   const runAction = async (id, fn) => {
     setActionLoadingId(id);
@@ -68,7 +82,17 @@ const BookingsList = () => {
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {bookings.length} reservations</p>
             </div>
-            <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+            <div className="flex items-center gap-2">
+              {can('bookings.manage') && (
+                <button type="button" onClick={() => setWalkIn(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">
+                  <UserPlus className="w-4 h-4" /> Walk-in booking
+                </button>
+              )}
+              <button type="button" onClick={exportCsv} title="Bookings with check-in in the last 30 days" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-white">
+                <FileDown className="w-4 h-4" /> Export CSV
+              </button>
+              <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+            </div>
           </div>
 
           <SearchFilterBar>
@@ -77,10 +101,19 @@ const BookingsList = () => {
               className="px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="ALL">All Statuses</option>
+              <option value="CANCEL_REQUESTS">Cancellation requests ({openRequests.length})</option>
               {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </SearchFilterBar>
 
+          {openRequests.length > 0 && statusFilter !== 'CANCEL_REQUESTS' && (
+            <button type="button" onClick={() => setStatusFilter('CANCEL_REQUESTS')}
+              className="mb-4 w-full flex items-center gap-2 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-left text-sm text-amber-900 dark:text-amber-200 hover:border-amber-300">
+              <MessageSquareWarning className="w-5 h-5 flex-shrink-0" />
+              <span><b>{openRequests.length} cancellation request{openRequests.length > 1 ? 's' : ''}</b> waiting for your decision - guests asked to cancel after the free-cancellation window.</span>
+              <span className="ml-auto font-semibold whitespace-nowrap">Review →</span>
+            </button>
+          )}
           <Card className="overflow-hidden">
             {filtered.length === 0 ? (
               <EmptyState icon={CalendarCheck} title="No reservations" description="Bookings made by your customers will show up here." />
@@ -108,7 +141,7 @@ const BookingsList = () => {
                             <div className="text-xs text-slate-400">{b.customer_email}</div>
                             {b.customer_phone && <a href={`tel:${b.customer_phone}`} className="text-xs text-slate-500 dark:text-slate-300 hover:underline">{b.customer_phone}</a>}
                           </td>
-                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{b.property_name || '—'}</td>
+                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{b.property_name || '-'}</td>
                           <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{b.room_detail?.name}</td>
                           <td className="px-4 py-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
                             {b.check_in} → {b.check_out}
@@ -125,9 +158,15 @@ const BookingsList = () => {
                                   </div>
                             )}
                             {b.payment_method === 'AT_PROPERTY' && <div className="text-xs text-slate-400 mt-1">Pays at property</div>}
+                            {b.cancel_request_status === 'PENDING' && (
+                              <div className="mt-1"><Badge tone="amber">Cancel requested</Badge></div>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
+                              {can('bookings.manage') && b.cancel_request_status === 'PENDING' && (
+                                <button disabled={busy} onClick={() => setDecideFor(b)} title="Review cancellation request" className="p-1.5 hover:bg-amber-500/10 text-amber-500 rounded-lg disabled:opacity-50"><MessageSquareWarning className="w-4 h-4" /></button>
+                              )}
                               {can('bookings.manage') && b.status === 'PENDING' && (
                                 <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.confirmBooking)} title="Confirm" className="p-1.5 hover:bg-blue-500/10 text-blue-500 rounded-lg disabled:opacity-50"><Check className="w-4 h-4" /></button>
                               )}
@@ -163,6 +202,8 @@ const BookingsList = () => {
 
       {historyId && <BookingHistoryModal bookingId={historyId} onClose={() => setHistoryId(null)} />}
       <RecordPaymentModal booking={payFor} onClose={() => setPayFor(null)} onSaved={fetchData} />
+      <WalkInModal open={walkIn} onClose={() => setWalkIn(false)} onSaved={fetchData} />
+      <CancelRequestDecisionModal booking={decideFor} canRefund={can('payments.refund')} onClose={() => setDecideFor(null)} onSaved={fetchData} />
     </div>
   );
 };

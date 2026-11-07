@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * ₹-formatted amount — matches the currency_symbol default already used
+ * ₹-formatted amount - matches the currency_symbol default already used
  * for payroll (SalarySettings). `suffix` is for things like "/ night".
  */
 const PriceTag = ({ amount, suffix = '', className = '' }) => {

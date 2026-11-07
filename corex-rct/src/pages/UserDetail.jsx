@@ -28,7 +28,7 @@ const InfoRow = ({ label, value, icon: Icon }) => (
     {Icon && <Icon className="w-4 h-4 text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />}
     <div>
       <p className="text-xs text-slate-500 dark:text-slate-500 mb-0.5">{label}</p>
-      <p className="text-sm text-slate-900 dark:text-white font-medium">{value || '—'}</p>
+      <p className="text-sm text-slate-900 dark:text-white font-medium">{value || '-'}</p>
     </div>
   </div>
 );
@@ -89,7 +89,7 @@ const ProfileTab = ({ userData, onEditPhoto, uploadingPhoto }) => (
         <InfoRow label="Role" value={userData.role} icon={Shield} />
         <InfoRow label="Organization" value={userData.organization_name} icon={Building2} />
         <InfoRow label="Employee ID" value={userData.employee_id || userData.id} icon={Briefcase} />
-        <InfoRow label="Date of Joining" value={userData.created_at ? new Date(userData.created_at).toLocaleDateString() : '—'} icon={Calendar} />
+        <InfoRow label="Date of Joining" value={userData.created_at ? new Date(userData.created_at).toLocaleDateString() : '-'} icon={Calendar} />
       </div>
     </div>
   </div>
@@ -170,9 +170,9 @@ const AttendanceTab = ({ userId }) => {
                     <td className="px-5 py-3 text-sm text-slate-900 dark:text-white">{r.date}</td>
                     <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{new Date(r.date).toLocaleDateString('en', { weekday: 'short' })}</td>
                     <td className="px-5 py-3"><Badge label={r.status} color={statusColor[r.status] || 'blue'} /></td>
-                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_in || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_out || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.hours_worked ? `${r.hours_worked}h` : '—'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_in || '-'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_out || '-'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.hours_worked ? `${r.hours_worked}h` : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -321,7 +321,7 @@ const SalaryTab = ({ userId }) => {
                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                   <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">{a.date}</td>
                   <td className="px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400 font-semibold">₹{a.amount?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{a.note || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{a.note || '-'}</td>
                   <td className="px-4 py-3"><Badge label={a.status} color={a.status === 'APPROVED' ? 'green' : a.status === 'REJECTED' ? 'red' : 'yellow'} /></td>
                 </tr>
               ))}

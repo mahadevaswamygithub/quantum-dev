@@ -40,7 +40,7 @@ def expire_stale_pending(queryset=None):
 
     Room availability already ignores stale PENDING rows (see
     Booking.room_is_available), so correctness never depends on this having
-    run — it just keeps lists and statuses honest."""
+    run - it just keeps lists and statuses honest."""
     qs = queryset if queryset is not None else Booking.objects.all()
     now = timezone.now()
     return qs.filter(status='PENDING', payment_method='ONLINE', created_at__lt=pending_cutoff()).update(
@@ -161,7 +161,7 @@ NEEDS_MANUAL_REFUND = 'needs_manual_refund'  # as above, but the automatic refun
 
 
 def confirm_payment(payment, razorpay_payment_id, signature=''):
-    """Record a successful Razorpay payment and confirm its booking — but
+    """Record a successful Razorpay payment and confirm its booking - but
     only if the booking can still be honoured.
 
     Called after the signature has been verified. Idempotent: the browser
@@ -190,7 +190,7 @@ def confirm_payment(payment, razorpay_payment_id, signature=''):
             pass  # booking was already fully paid (duplicate payment) → refund below
         elif booking.status in ('CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'):
             # e.g. staff confirmed it at the desk before the online payment
-            # landed — the booking stands, this payment simply settles it.
+            # landed - the booking stands, this payment simply settles it.
             return booking, CONFIRMED
         elif booking.status == 'PENDING' or booking.cancel_reason == 'EXPIRED':
             # Lock the room so a concurrent booking can't take it between

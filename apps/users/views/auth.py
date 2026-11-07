@@ -12,6 +12,7 @@ from django.utils.encoding import force_bytes, force_str
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils import timezone
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from ..models import User, ImpersonationToken
 from ..serializers import UserRegistrationSerializer, UserSerializer
@@ -34,7 +35,7 @@ class UserRegistrationView(generics.CreateAPIView):
         return [ScopedRateThrottle()] if self.request.method == 'POST' else []
 
     def get(self, request):
-        """{enabled} — whether public organization sign-up is open (shows/hides the link)."""
+        """{enabled} - whether public organization sign-up is open (shows/hides the link)."""
         return Response({'enabled': settings.ALLOW_PUBLIC_ORG_SIGNUP})
 
     def create(self, request, *args, **kwargs):
@@ -86,7 +87,7 @@ class LoginView(APIView):
         if not user:
             if login_guard.record_failure(email):
                 minutes = settings.LOGIN_LOCKOUT_MINUTES
-                return Response({'error': f'Too many failed attempts. This account is locked for {minutes} minutes — '
+                return Response({'error': f'Too many failed attempts. This account is locked for {minutes} minutes - '
                                           'or reset your password to get back in now.'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
         login_guard.clear_failures(email)
@@ -108,7 +109,7 @@ def login_response(request, user, extra=None):
     """Issue tokens for a fully authenticated user (password + any 2FA)."""
     refresh = RefreshToken.for_user(user)
     update_last_login(None, user)
-    # actor=user passed explicitly — request.user is still AnonymousUser
+    # actor=user passed explicitly - request.user is still AnonymousUser
     # at this point. Staff sign-ins are audited; guest sign-ins aren't.
     if user.role != 'CUSTOMER':
         log_activity(request, 'LOGIN', actor=user, organization=user.organization)
@@ -133,7 +134,7 @@ class LogoutView(APIView):
                 token = RefreshToken(refresh)
                 if str(token.get('user_id')) == str(request.user.id):
                     token.blacklist()
-            except Exception:  # already expired/blacklisted/garbled — nothing left to revoke
+            except Exception:  # already expired/blacklisted/garbled - nothing left to revoke
                 pass
         if request.user.role != 'CUSTOMER':
             log_activity(request, 'LOGOUT', organization=request.user.organization)
@@ -143,10 +144,11 @@ class LogoutView(APIView):
 class ImpersonationExchangeView(APIView):
     """Exchanges a single-use impersonation code (minted by
     OrganizationViewSet.impersonate) for real JWTs. Called from a fresh
-    browser tab that has no session yet, so it's necessarily AllowAny —
+    browser tab that has no session yet, so it's necessarily AllowAny -
     safety comes from the code being unguessable, short-lived, and
     consumed on first use, not from the caller being authenticated."""
     permission_classes = [AllowAny]
+    authentication_classes = []  # ignore whatever (possibly expired) token the new tab still carries
     throttle_scope = 'impersonation'
 
     def get_throttles(self):
@@ -157,14 +159,16 @@ class ImpersonationExchangeView(APIView):
         code = request.data.get('code')
         try:
             token = ImpersonationToken.objects.get(code=code)
-        except (ImpersonationToken.DoesNotExist, ValueError, TypeError):
+        except (ImpersonationToken.DoesNotExist, ValueError, TypeError, DjangoValidationError):
             return Response({'error': 'This impersonation link is invalid.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if token.used_at or token.expires_at < timezone.now():
+        # Claim the code atomically so two simultaneous requests can't both use it.
+        now = timezone.now()
+        claimed = ImpersonationToken.objects.filter(
+            pk=token.pk, used_at__isnull=True, expires_at__gte=now,
+        ).update(used_at=now)
+        if not claimed:
             return Response({'error': 'This impersonation link has expired or was already used.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        token.used_at = timezone.now()
-        token.save(update_fields=['used_at'])
 
         user = token.target_user
         refresh = RefreshToken.for_user(user)
@@ -204,7 +208,7 @@ class ForgotPasswordView(APIView):
                 f"Hello {user.first_name or ''},\n\n"
                 f"We received a request to reset the password for {user.email}.\n\n"
                 f"Set a new password here:\n{reset_url}\n\n"
-                "If you didn't ask for this, you can ignore this email — your password won't change.\n",
+                "If you didn't ask for this, you can ignore this email - your password won't change.\n",
                 user.email,
             )  # failures are logged on the server; the response never reveals them
         # Same answer either way, so this can't be used to find out who has an account.

@@ -17,30 +17,30 @@ const Field = ({ label, required, tooltip, children }) => (
   </div>
 );
 
-// Which roles make sense depends on the target org's type — an MSP role in
+// Which roles make sense depends on the target org's type - an MSP role in
 // an STP organization (or vice versa) isn't just wrong labeling, MSP routes
 // are gated by role alone (not re-checked against the org), so it's a real
 // privilege mismatch. The backend enforces this too (UserCreateSerializer /
-// UserUpdateSerializer) — this is the UX half, so the mismatch is never
+// UserUpdateSerializer) - this is the UX half, so the mismatch is never
 // even offered as an option.
 export const ROLE_OPTIONS = {
   MSP: [
-    { value: 'MSP_USER', label: 'MSP staff — choose what they can access' },
-    { value: 'MSP_ADMIN', label: 'MSP admin — full access' },
+    { value: 'MSP_USER', label: 'MSP staff - choose what they can access' },
+    { value: 'MSP_ADMIN', label: 'MSP admin - full access' },
   ],
   STP: [
-    { value: 'STP_USER', label: 'Staff — choose what they can access' },
-    { value: 'STP_ADMIN', label: 'Admin — full access' },
+    { value: 'STP_USER', label: 'Staff - choose what they can access' },
+    { value: 'STP_ADMIN', label: 'Admin - full access' },
     { value: 'EMPLOYEE', label: 'Employee (employee portal only)' },
   ],
 };
 
-/** The org type a given role can target — MSP_* roles only make sense in an
+/** The org type a given role can target - MSP_* roles only make sense in an
  * MSP org, everything else (STP_*, EMPLOYEE) only in an STP org. Mirrors
  * the backend's _check_role_matches_org_type (apps/users/serializers/users.py). */
 const roleOrgType = (role) => (role && role.startsWith('MSP_')) ? 'MSP' : 'STP';
 
-/** Which roles this modal offers at all, based on who's opening it — an MSP
+/** Which roles this modal offers at all, based on who's opening it - an MSP
  * admin manages both their own MSP teammates and their STP sub-orgs' staff,
  * an STP admin only ever manages their own STP-side roles. */
 const ADMIN_TIERS = ['MSP_ADMIN', 'STP_ADMIN'];
@@ -79,7 +79,7 @@ const AccessRoleField = ({ organizationId, value, onChange }) => {
     <Field label="Access role" required tooltip="What this person can see and do. Edit roles in Settings → Roles & access.">
       <select value={value || ''} onChange={e => onChange(e.target.value)} required className={inputCls} disabled={!roles}>
         {!roles && <option value="">Loading roles…</option>}
-        {roles && roles.length === 0 && <option value="">No roles — create one in Settings → Roles & access</option>}
+        {roles && roles.length === 0 && <option value="">No roles - create one in Settings → Roles & access</option>}
         {roles?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
       </select>
       {selected?.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{selected.description}</p>}
@@ -109,7 +109,7 @@ export const AddUserModal = ({ isOpen, onClose, onSuccess, organizations = [], c
 
   const roleOptions = roleOptionsFor(currentOrgType, isAdmin);
   // Organization choices are scoped to whatever org type the *selected role*
-  // implies (not the other way around) — an MSP role can only ever target
+  // implies (not the other way around) - an MSP role can only ever target
   // an MSP organization, so an STP sub-org never even shows up as a pickable
   // option once "MSP Admin"/"MSP User" is the selected role.
   const orgOptions = organizations.filter(o => o.tenant_type === roleOrgType(form.role));

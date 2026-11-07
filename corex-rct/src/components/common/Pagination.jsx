@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 /**
- * Standalone pagination bar — shared by ActivityLog, OrganizationsList,
+ * Standalone pagination bar - shared by ActivityLog, OrganizationsList,
  * UsersList (any page that paginates a client-side array). Renders the
  * "Showing X–Y of Z" summary always, and page controls only when there's
  * more than one page.

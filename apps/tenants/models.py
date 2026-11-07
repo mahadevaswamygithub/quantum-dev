@@ -8,7 +8,7 @@ class Organization(TenantMixin):
         ('STP', 'Single Tenant Portal'),
     ]
 
-    # Business vertical for STP orgs (room booking, hotel, hospital, ...) —
+    # Business vertical for STP orgs (room booking, hotel, hospital, ...) -
     # what drives per-vertical UI/functionality down the line. MSP orgs are
     # purely administrative and never get one (stays null).
     ORG_TYPE_CHOICES = [
@@ -78,7 +78,7 @@ class OrgEmailSettings(models.Model):
     """How an organization's emails to guests are sent (Settings → Email).
 
     PLATFORM (default): sent through CoreX's mail account, with the
-    organization's name as the sender name and its address as Reply-To —
+    organization's name as the sender name and its address as Reply-To -
     replies reach the property. CUSTOM: sent through the organization's own
     SMTP server/mailbox, so they come *from* its own address."""
     MODE_CHOICES = [('PLATFORM', 'Sent by CoreX on your behalf'), ('CUSTOM', 'Your own email account')]
@@ -94,7 +94,7 @@ class OrgEmailSettings(models.Model):
     smtp_port = models.PositiveIntegerField(default=587)
     smtp_security = models.CharField(max_length=4, choices=SECURITY_CHOICES, default='TLS')
     smtp_username = models.CharField(max_length=255, blank=True)
-    smtp_password_encrypted = models.TextField(blank=True)      # apps.core.crypto — never stored in plain text
+    smtp_password_encrypted = models.TextField(blank=True)      # apps.core.crypto - never stored in plain text
     from_email = models.EmailField(blank=True)                  # blank → smtp_username
     last_test_at = models.DateTimeField(null=True, blank=True)
     last_test_ok = models.BooleanField(null=True, blank=True)
@@ -105,7 +105,7 @@ class OrgEmailSettings(models.Model):
         db_table = 'org_email_settings'
 
     def __str__(self):
-        return f"Email settings — {self.organization.name}"
+        return f"Email settings - {self.organization.name}"
 
     @classmethod
     def for_org(cls, organization):

@@ -1,7 +1,7 @@
 from datetime import date, time
 from unittest.mock import patch
 from django.db import models
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from apps.tenants.models import Organization
 from apps.users.models import User, AttendanceRecord, UserDocument, ImpersonationToken
 
@@ -149,3 +149,44 @@ class ForgotPasswordEmailTests(__import__('django.test', fromlist=['TestCase']).
                 self.assertLogs('apps.core.email', level='ERROR') as logs:
             self.assertEqual(self._post('s@example.com').status_code, 200)
         self.assertIn('Failed to send email', logs.output[0])
+
+
+class ImpersonationExchangeTests(TestCase):
+    """A code works exactly once and only before it expires."""
+
+    def setUp(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        self.org = Organization(schema_name='imp', name='Imp Hotel', tenant_type='STP', org_type='ROOM_BOOKING')
+        self.org.auto_create_schema = False
+        self.org.save()
+        msp = User.objects.create_user(username='msp', email='msp@example.com', password='x' * 12, role='MSP_ADMIN')
+        admin = User.objects.create_user(username='adm', email='adm@example.com', password='x' * 12,
+                                         role='STP_ADMIN', organization=self.org)
+        mk = lambda secs: ImpersonationToken.objects.create(  # noqa: E731
+            target_user=admin, initiated_by=msp, organization=self.org,
+            expires_at=timezone.now() + timedelta(seconds=secs))
+        self.token, self.expired = mk(60), mk(-1)
+
+    def exchange(self, code):
+        from rest_framework.test import APIRequestFactory
+        from apps.users.views import ImpersonationExchangeView
+        request = APIRequestFactory().post('/', {'code': str(code)}, format='json')
+        return ImpersonationExchangeView.as_view()(request)
+
+    def test_single_use(self):
+        first = self.exchange(self.token.code)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(first.data['user']['email'], 'adm@example.com')
+        self.assertEqual(self.exchange(self.token.code).status_code, 400)
+
+    def test_stale_token_in_new_tab_does_not_break_the_exchange(self):
+        from rest_framework.test import APIRequestFactory
+        from apps.users.views import ImpersonationExchangeView
+        request = APIRequestFactory().post('/', {'code': str(self.token.code)}, format='json',
+                                           HTTP_AUTHORIZATION='Bearer expired.or.garbage')
+        self.assertEqual(ImpersonationExchangeView.as_view()(request).status_code, 200)
+
+    def test_expired_and_unknown_codes_rejected(self):
+        self.assertEqual(self.exchange(self.expired.code).status_code, 400)
+        self.assertEqual(self.exchange('not-a-uuid').status_code, 400)

@@ -1,5 +1,5 @@
 """
-corex/urls_public.py  (public schema — all requests via localhost)
+corex/urls_public.py  (public schema - all requests via localhost)
 
 Each domain owns its own router/urls module (apps/users/urls/<domain>.py,
 apps/tenants/urls.py); this file only wires prefixes to them.

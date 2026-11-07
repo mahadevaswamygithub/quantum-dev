@@ -47,7 +47,7 @@ const OrganizationDetail = () => {
       const fd = new FormData();
       fd.append('file', file);
       const { data } = await tenantAPI.uploadLogo(id, fd);
-      // Merge just the logo — `data` comes back as the flat org serializer,
+      // Merge just the logo - `data` comes back as the flat org serializer,
       // while `org` here also carries the detail-only fields (domains/users/stats).
       setOrg(prev => ({ ...prev, logo: data.logo }));
     } catch { alert('Failed to upload logo'); }

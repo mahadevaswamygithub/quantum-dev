@@ -7,7 +7,7 @@ import React from 'react';
  * omit it for the bare-spinner variant used by the rest.
  *
  * Distinct from components/LoadingSpinner.js (a different, full-page
- * Loader2-icon spinner used only by PrivateRoute) — not merged with that
+ * Loader2-icon spinner used only by PrivateRoute) - not merged with that
  * one since they're two different visual idioms.
  */
 const PageSpinner = ({ label }) => (

@@ -70,7 +70,7 @@ const RecordPaymentModal = ({ booking, onClose, onSaved }) => {
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Amount received (₹)</span>
           <input type="number" min="0.01" step="0.01" max={booking.balance_due} required value={amount}
             onChange={e => setAmount(e.target.value)} className={`mt-1.5 ${inputCls}`} />
-          <span className="mt-1 block text-xs text-slate-400">Part payments are fine — the rest stays due.</span>
+          <span className="mt-1 block text-xs text-slate-400">Part payments are fine - the rest stays due.</span>
         </label>
         <label className="block">
           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Note (optional)</span>

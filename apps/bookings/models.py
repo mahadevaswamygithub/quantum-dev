@@ -1,7 +1,7 @@
 """
 Room-booking vertical: only meaningful for STP organizations whose
 org_type is ROOM_BOOKING (apps.tenants.models.Organization.ORG_TYPE_CHOICES),
-enforced at the serializer layer rather than here — these models don't
+enforced at the serializer layer rather than here - these models don't
 themselves check org_type so they stay reusable if a future vertical wants
 a similar room/reservation shape.
 """
@@ -11,7 +11,7 @@ from django.db import models
 
 
 class Property(models.Model):
-    """One physical building/branch belonging to an org — e.g. a temple
+    """One physical building/branch belonging to an org - e.g. a temple
     trust's separate guest-house blocks. Sits between Organization and Room
     (Organization → Property → Room → Booking). Same lat/lng field shape as
     Organization so RoundedCoordinatesMixin (apps.core.serializers) and the
@@ -35,7 +35,7 @@ class Property(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.name} — {self.organization.name}"
+        return f"{self.name} - {self.organization.name}"
 
 
 class Room(models.Model):
@@ -50,7 +50,7 @@ class Room(models.Model):
 
     organization = models.ForeignKey('tenants.Organization', on_delete=models.CASCADE, related_name='rooms')
     # Nullable at the DB level (safe migration regardless of any rooms that
-    # already exist), required at the serializer layer instead — same
+    # already exist), required at the serializer layer instead - same
     # precedent as Organization.org_type (nullable model field, enforced
     # "required for STP" only in OrganizationCreateSerializer.validate()).
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='rooms', null=True, blank=True)
@@ -74,7 +74,7 @@ class Room(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.name} — {self.organization.name}"
+        return f"{self.name} - {self.organization.name}"
 
 
 class RoomImage(models.Model):
@@ -101,8 +101,8 @@ class Booking(models.Model):
         ('CANCELLED', 'Cancelled'),
     ]
 
-    # Denormalized alongside `room.organization`/`room.property` — same
-    # pattern as ActivityLog.organization — so OrganizationScopedQuerysetMixin
+    # Denormalized alongside `room.organization`/`room.property` - same
+    # pattern as ActivityLog.organization - so OrganizationScopedQuerysetMixin
     # applies directly, and staff can filter/see bookings by building
     # without a join at every call site.
     organization = models.ForeignKey('tenants.Organization', on_delete=models.CASCADE, related_name='bookings')
@@ -111,7 +111,7 @@ class Booking(models.Model):
     # PROTECT: a guest deleting their account anonymizes it rather than
     # removing the row, so the property's reservation records survive.
     customer = models.ForeignKey('users.User', on_delete=models.PROTECT, related_name='bookings')
-    # Snapshot of the guest's contact details when they booked — the property's
+    # Snapshot of the guest's contact details when they booked - the property's
     # record of the reservation, unaffected by later profile edits or deletion.
     guest_name = models.CharField(max_length=150, blank=True)
     guest_email = models.EmailField(blank=True)
@@ -137,10 +137,19 @@ class Booking(models.Model):
         ('STAFF', 'Cancelled by staff'),
         ('REFUNDED', 'Refunded'),
         ('UNAVAILABLE', 'Room no longer available'),
+        ('REQUESTED', 'Cancelled at the guest’s request'),
     ]
     # Why a CANCELLED booking was cancelled. Only an EXPIRED one may be
     # revived, when a late payment arrives and the room is still free.
     cancel_reason = models.CharField(max_length=12, choices=CANCEL_REASON_CHOICES, blank=True)
+    # After the free-cancellation window a guest can't cancel online, but can
+    # ask the property to: PENDING until staff approve (booking cancelled,
+    # status APPROVED) or decline it (with a reply to the guest).
+    CANCEL_REQUEST_CHOICES = [('PENDING', 'Waiting for the property'), ('APPROVED', 'Approved'), ('DECLINED', 'Declined')]
+    cancel_request_status = models.CharField(max_length=10, choices=CANCEL_REQUEST_CHOICES, blank=True)
+    cancel_request_reason = models.TextField(blank=True)
+    cancel_requested_at = models.DateTimeField(null=True, blank=True)
+    cancel_request_reply = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -154,7 +163,7 @@ class Booking(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.customer.get_full_name()} — {self.room.name} ({self.check_in} to {self.check_out})"
+        return f"{self.customer.get_full_name()} - {self.room.name} ({self.check_in} to {self.check_out})"
 
     @staticmethod
     def room_is_available(room, check_in, check_out, exclude_booking_id=None):
@@ -192,7 +201,7 @@ class Payment(models.Model):
         ('REFUNDED', 'Refunded'),
     ]
 
-    # FK (not OneToOne) — a failed/abandoned Razorpay order shouldn't block
+    # FK (not OneToOne) - a failed/abandoned Razorpay order shouldn't block
     # the guest from retrying create_order on the same booking.
     booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='payments')
     razorpay_order_id = models.CharField(max_length=100, blank=True, db_index=True)
@@ -227,7 +236,7 @@ class Payment(models.Model):
         ]
 
     def __str__(self):
-        return f"Payment {self.razorpay_payment_id or self.razorpay_order_id or self.id} — {self.status}"
+        return f"Payment {self.razorpay_payment_id or self.razorpay_order_id or self.id} - {self.status}"
 
 
 class BookingSettings(models.Model):
@@ -258,7 +267,7 @@ class BookingSettings(models.Model):
         verbose_name_plural = 'booking settings'
 
     def __str__(self):
-        return f"Booking settings — {self.organization.name}"
+        return f"Booking settings - {self.organization.name}"
 
     @classmethod
     def for_org(cls, organization):
@@ -267,7 +276,7 @@ class BookingSettings(models.Model):
 
 
 class Review(models.Model):
-    """A guest's rating of a completed stay — one per booking. `comment` and
+    """A guest's rating of a completed stay - one per booking. `comment` and
     the property's `reply` are public; `private_feedback` is seen only by
     the property's staff."""
     booking = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name='review')
@@ -288,4 +297,19 @@ class Review(models.Model):
         indexes = [models.Index(fields=['organization', '-created_at'])]
 
     def __str__(self):
-        return f"{self.rating}★ — {self.organization.name}"
+        return f"{self.rating}★ - {self.organization.name}"
+
+
+class WishlistItem(models.Model):
+    """A property a guest saved for later (♥ on the booking site)."""
+    user = models.ForeignKey('users.User', on_delete=models.CASCADE, related_name='wishlist')
+    organization = models.ForeignKey('tenants.Organization', on_delete=models.CASCADE, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'booking_wishlist'
+        ordering = ['-created_at']
+        constraints = [models.UniqueConstraint(fields=['user', 'organization'], name='unique_wishlist_item')]
+
+    def __str__(self):
+        return f"{self.user_id} ♥ {self.organization_id}"

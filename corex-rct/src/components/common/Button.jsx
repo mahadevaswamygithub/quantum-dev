@@ -1,12 +1,12 @@
 import React from 'react';
 
 /**
- * Standard action button — every "Add X" / toolbar action across list pages
+ * Standard action button - every "Add X" / toolbar action across list pages
  * (Organizations, Users, Rooms, Properties, ...) uses this so they stay the
  * same size and weight regardless of which portal (MSP/STP) renders them,
  * instead of each page hand-rolling its own one-off (e.g. Users' old
  * "Add User" button was px-6 py-3 with a different gradient than every
- * other "Add X" button's px-4 py-2 — that drift is what this fixes).
+ * other "Add X" button's px-4 py-2 - that drift is what this fixes).
  */
 const VARIANTS = {
   primary: 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white',

@@ -66,7 +66,7 @@ def password_problems(password, user=None):
 
 
 def revoke_all_sessions(user):
-    """Blacklist every refresh token issued to this user — signs them out on
+    """Blacklist every refresh token issued to this user - signs them out on
     every device once their short-lived access token expires."""
     from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken, OutstandingToken
     for token in OutstandingToken.objects.filter(user=user):

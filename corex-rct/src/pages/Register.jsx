@@ -79,7 +79,7 @@ const Register = () => {
         <div className="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 p-8 text-center">
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Sign-up is closed</h2>
           <p className="text-slate-500 dark:text-slate-400 mb-6">
-            New organizations are set up by your service provider. Ask them to create an account for you — you'll get an email to set your password.
+            New organizations are set up by your service provider. Ask them to create an account for you - you'll get an email to set your password.
           </p>
           <Link to="/login" className="font-semibold text-green-600 hover:text-green-700">Back to sign in</Link>
         </div>
@@ -107,7 +107,7 @@ const Register = () => {
       <div className="w-full max-w-2xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-block w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
             <span className="text-2xl font-bold text-white">CX</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Create Your Account</h1>

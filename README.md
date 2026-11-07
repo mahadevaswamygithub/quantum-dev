@@ -24,6 +24,15 @@ to configure. Only Django is a hard dependency of the main app;
 `orchestrator` is only needed for the AI chat assistant feature and fails
 gracefully (a friendly error in the chat widget) if it's not running.
 
+**Guest assistant (booking site).** Guests on `/book` get a separate chat
+helper (`POST /api/bookings/assistant/`, open to logged-out visitors). It never
+uses the orchestrator — that agent has staff tools. Common questions (find
+stays, live availability, my bookings, check-in/payment/cancellation/contact)
+are answered instantly from the database; anything else goes straight to a
+local Ollama model with public facts only and no tools. Needs `ollama serve`
+with the model in `GUEST_ASSISTANT_MODEL` pulled (`ollama pull llama3.2`);
+without it the helper still works and shows its menu for unknown questions.
+
 | Service | Path | Port | Framework |
 |---|---|---|---|
 | Backend | repo root (`apps/`, `chat/`, `corex/`) | 8000 | Django + DRF |

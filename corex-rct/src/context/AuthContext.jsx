@@ -10,6 +10,14 @@ export const AuthProvider = ({ children }) => {
   const [isImpersonating, setIsImpersonating] = useState(tokenStorage.isImpersonating());
 
   useEffect(() => {
+    // A fresh tab opened by "Impersonate" must not restore (or refresh) the
+    // admin's own session from localStorage - ImpersonateSession is about to
+    // put the impersonated session in this tab, and a late /users/me answer
+    // for the admin would overwrite it.
+    if (window.location.pathname.startsWith('/impersonate/') && !tokenStorage.isImpersonating()) {
+      setLoading(false);
+      return;
+    }
     const storedUser = tokenStorage.get('user');
     if (!storedUser) {
       setLoading(false);
@@ -29,7 +37,12 @@ export const AuthProvider = ({ children }) => {
     // only as fresh as the last login).
     userAPI.getCurrentUser()
       .then(({ data }) => {
-        const fresh = { ...parsed, ...data };
+        // Only apply it if this tab is still signed in as the same person -
+        // the session may have changed (login, impersonation) while it loaded.
+        let current = null;
+        try { current = JSON.parse(tokenStorage.get('user') || 'null'); } catch { /* ignore */ }
+        if (!current || current.id !== data.id) return;
+        const fresh = { ...current, ...data };
         setUser(fresh);
         tokenStorage.setUser(fresh, tokenStorage.isImpersonating());
       })
@@ -102,15 +115,16 @@ export const AuthProvider = ({ children }) => {
     tokenStorage.setUser(newUser, isImpersonating);
   };
 
-  const getPortalRoute = () => {
-    if (!user) return '/login';
-    switch (user.role) {
+  /** Home route for `who` (defaults to the signed-in user). */
+  const getPortalRoute = (who = user) => {
+    if (!who) return '/login';
+    switch (who.role) {
       case 'MSP_ADMIN':
       case 'MSP_USER': return '/msp';
       case 'STP_ADMIN':
       case 'STP_USER': return '/stp';
       case 'EMPLOYEE': return '/employee';
-      case 'CUSTOMER': return `/book/${user.organization_id}`;
+      case 'CUSTOMER': return '/book/me';
       default: return '/';
     }
   };

@@ -141,13 +141,13 @@ const TwoFactorStep = ({ mfa, onSignedIn, onCancel }) => {
             {pending ? 'Save your backup codes' : mfa.step === 'setup' ? 'Set up two-step verification' : 'Two-step verification'}
           </h2>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {pending ? 'Then you’re in.' : mfa.step === 'setup' ? 'Required for your role — it takes a minute.' : 'Enter the code from your authenticator app.'}
+            {pending ? 'Then you’re in.' : mfa.step === 'setup' ? 'Required for your role - it takes a minute.' : 'Enter the code from your authenticator app.'}
           </p>
         </div>
       </div>
 
       {pending ? (
-        <BackupCodes codes={pending.backup_codes} onDone={() => onSignedIn(completeLogin(pending))} doneLabel="I’ve saved them — continue" />
+        <BackupCodes codes={pending.backup_codes} onDone={() => onSignedIn(completeLogin(pending))} doneLabel="I’ve saved them - continue" />
       ) : mfa.step === 'setup' ? (
         <TwoFactorSetup mfaToken={mfa.token} onEnabled={setPending} />
       ) : (

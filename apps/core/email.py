@@ -2,7 +2,7 @@
 
 Callers that must not reveal whether an address exists (forgot password) or
 must not roll back work if the mail server hiccups (invites) still shouldn't
-swallow errors silently — that hid a broken SMTP login for weeks. These log
+swallow errors silently - that hid a broken SMTP login for weeks. These log
 the failure with a stack trace and return False instead of raising.
 """
 import logging

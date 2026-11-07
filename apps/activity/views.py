@@ -8,7 +8,7 @@ from .models import ActivityLog
 from .serializers import ActivityLogSerializer
 
 # Matches other list endpoints in this codebase (UserViewSet.list,
-# OrganizationViewSet) which return a plain array with no DRF pagination —
+# OrganizationViewSet) which return a plain array with no DRF pagination -
 # kept consistent here, just capped so a busy org can't return an unbounded
 # payload.
 MAX_RESULTS = 300
@@ -16,7 +16,7 @@ MAX_RESULTS = 300
 
 class ActivityLogViewSet(OrganizationScopedQuerysetMixin, viewsets.ReadOnlyModelViewSet):
     """
-    Read-only — rows are written exclusively by log_activity(), never
+    Read-only - rows are written exclusively by log_activity(), never
     through this API. Audit-trail visibility is admin-only: MSP_ADMIN sees
     activity across their own org + sub-orgs, STP_ADMIN sees their own
     org's activity only. Non-admin roles get nothing (this is an admin

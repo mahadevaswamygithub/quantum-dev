@@ -5,11 +5,11 @@ import worldTopology from 'world-atlas/countries-110m.json';
 import { useTheme } from '../context/ThemeContext';
 import { orgTypeLabel } from '../constants/orgTypes';
 
-// Marker colors — validated with the dataviz skill's palette checker
+// Marker colors - validated with the dataviz skill's palette checker
 // (CVD-safe adjacent pair + normal-vision floor + contrast, both themes,
 // against these exact map surfaces): `node scripts/validate_palette.js
 // "#16a34a,#a855f7" --mode light --surface "#f8fafc"` and `--mode dark
-// --surface "#1e293b"` — both ALL CHECKS PASS. Same two hexes serve both
+// --surface "#1e293b"` - both ALL CHECKS PASS. Same two hexes serve both
 // themes; only the map chrome (land/border/ocean) swaps with theme.
 const MARKER_COLORS = { MSP: '#16a34a', STP: '#a855f7' };
 
@@ -21,7 +21,7 @@ const MAP_CHROME = {
 /**
  * World map plotting organizations by latitude/longitude (set via
  * Add/Edit Organization). Uses a bundled low-resolution topojson
- * (world-atlas, ~105KB) so there's no runtime tile-server/CDN dependency —
+ * (world-atlas, ~105KB) so there's no runtime tile-server/CDN dependency -
  * fully self-contained and free, per the org's "free map" requirement.
  */
 const WorldMap = ({ organizations = [] }) => {
@@ -57,7 +57,7 @@ const WorldMap = ({ organizations = [] }) => {
             {located.length} of {organizations.length} organizations have a location set
           </p>
         </div>
-        {/* Legend — two categorical series, always shown per dataviz rules */}
+        {/* Legend - two categorical series, always shown per dataviz rules */}
         <div className="flex items-center gap-4 text-xs text-slate-600 dark:text-slate-300">
           <span className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: MARKER_COLORS.MSP }} />
@@ -137,7 +137,7 @@ const WorldMap = ({ organizations = [] }) => {
             <div className="text-center px-6">
               <Globe2 className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                No organizations have a location yet — add one from Edit Organization.
+                No organizations have a location yet - add one from Edit Organization.
               </p>
             </div>
           </div>

@@ -59,7 +59,7 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
             user.save()
 
         send_email(
-            f'Welcome to CoreX — {organization.name} is ready',
+            f'Welcome to CoreX - {organization.name} is ready',
             f"Hello {user.first_name},\n\nYour organization {organization.name} has been created and you are its admin.\n"
             f"Sign in at {settings.FRONTEND_URL}/login with {user.email}.\n",
             user.email,

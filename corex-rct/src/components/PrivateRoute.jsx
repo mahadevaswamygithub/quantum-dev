@@ -9,7 +9,7 @@ const portalHome = (role) => (
 
 /**
  * `allowedRoles`: which user tiers may open the page at all.
- * `perm`: a permission code (or array — any one is enough) the user's role
+ * `perm`: a permission code (or array - any one is enough) the user's role
  * must grant (apps.core.access). Without it they're sent to their portal's
  * dashboard instead of a dead end. The API enforces the same rules.
  */

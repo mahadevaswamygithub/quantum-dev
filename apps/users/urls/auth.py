@@ -1,4 +1,4 @@
-"""Auth endpoints — mounted at /api/auth/."""
+"""Auth endpoints - mounted at /api/auth/."""
 from django.urls import path
 
 from apps.users.views import (

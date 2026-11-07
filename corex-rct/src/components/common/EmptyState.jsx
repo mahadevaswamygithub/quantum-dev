@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Icon + message shell for "nothing here yet" states — reused for
+ * Icon + message shell for "nothing here yet" states - reused for
  * "no rooms" / "no bookings" / etc instead of ad hoc centered <p> tags.
  */
 const EmptyState = ({ icon: Icon, title, description, action, className = '' }) => (

@@ -3,15 +3,15 @@ from django.db import models
 
 class ActivityLog(models.Model):
     """
-    Append-only audit trail: who did what, to which record, and when —
+    Append-only audit trail: who did what, to which record, and when -
     covers CRUD on Organizations/Users plus login/logout, across both the
     MSP and STP portals.
 
-    Rows are never edited or deleted from the app (see ActivityLogViewSet —
+    Rows are never edited or deleted from the app (see ActivityLogViewSet -
     read-only), so `actor`/`organization` use SET_NULL rather than CASCADE:
     a deleted user or org shouldn't take their own history with them. The
     `actor_username`/`actor_role` and `object_repr` fields snapshot
-    human-readable text at write time for the same reason — they stay
+    human-readable text at write time for the same reason - they stay
     readable even after the thing they describe is gone.
     """
     ACTION_CHOICES = [
@@ -26,12 +26,12 @@ class ActivityLog(models.Model):
         'users.User', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='activity_logs',
     )
-    # Snapshots of the actor at write time — survive the actor being deleted
+    # Snapshots of the actor at write time - survive the actor being deleted
     # or (for role) later changing role, so old rows still read correctly.
     actor_username = models.CharField(max_length=150, blank=True)
     actor_role = models.CharField(max_length=20, blank=True)
 
-    # The organization this event is scoped to — for record CRUD, the
+    # The organization this event is scoped to - for record CRUD, the
     # target record's org (so both the acting MSP and the affected STP see
     # it); for login/logout, the actor's own org. Powers the same
     # OrganizationScopedQuerysetMixin every other list view uses.

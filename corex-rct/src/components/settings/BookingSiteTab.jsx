@@ -131,7 +131,7 @@ const BookingSiteTab = () => {
               onChange={v => setForm(f => ({ ...f, auto_confirm: v }))}
               label="Confirm bookings automatically"
               description={form.auto_confirm
-                ? 'New bookings are confirmed instantly — no approval needed. With online payments on, guests pay while booking.'
+                ? 'New bookings are confirmed instantly - no approval needed. With online payments on, guests pay while booking.'
                 : 'Each new booking waits for you to confirm it in Bookings. Once confirmed, the guest can pay online or at the property.'}
             />
             <div className="grid gap-4 sm:grid-cols-2">

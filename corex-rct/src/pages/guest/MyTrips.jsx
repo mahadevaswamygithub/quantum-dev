@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, BedDouble, CalendarX, Download, History, Loader2, Phone, Star } from 'lucide-react';
+import { AlertCircle, BedDouble, CalendarCheck, CalendarX, CheckCircle2, Clock, Download, History, Loader2, MessageSquareX, Phone, Search, Star, XCircle } from 'lucide-react';
 import GuestAccountLayout from '../../components/guest/GuestAccountLayout';
 import BookingHistoryModal from '../../components/BookingHistoryModal';
 import RateStayModal from '../../components/guest/RateStayModal';
+import CancelRequestModal from '../../components/guest/CancelRequestModal';
 import Stars from '../../components/common/Stars';
 import { formatDate, formatDateTime, formatMoney, formatTime, todayISO, useGuest } from '../../components/guest/guestUtils';
 import { bookingAPI } from '../../services/api';
@@ -22,7 +23,7 @@ const statusOf = (b) => (b.status === 'PENDING' && b.payment_method === 'AT_PROP
 
 const CANCEL_REASON = {
   EXPIRED: 'Not paid in time', CUSTOMER: 'Cancelled by you', STAFF: 'Cancelled by the property',
-  REFUNDED: 'Refunded', UNAVAILABLE: 'Room became unavailable — refunded',
+  REFUNDED: 'Refunded', UNAVAILABLE: 'Room became unavailable - refunded', REQUESTED: 'Cancelled at your request',
 };
 
 const TABS = [
@@ -35,6 +36,7 @@ const MyTrips = () => {
   const { user } = useGuest();
   const [bookings, setBookings] = useState(null);
   const [tab, setTab] = useState('upcoming');
+  const [search, setSearch] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [error, setError] = useState('');
   const [historyId, setHistoryId] = useState(null);
@@ -61,6 +63,8 @@ const MyTrips = () => {
       cancelled: all.filter(b => b.status === 'CANCELLED'),
     };
   }, [bookings]);
+
+  const [requestFor, setRequestFor] = useState(null);
 
   const cancel = async (b) => {
     const refundNote = b.is_paid ? `\n\nYour payment of ${formatMoney(b.total_amount)} will be refunded.` : '';
@@ -97,19 +101,44 @@ const MyTrips = () => {
     }
   };
 
-  const list = groups[tab];
+  const term = search.trim().toLowerCase().replace(/^cx-?0*/, '');
+  const list = !term ? groups[tab] : groups[tab].filter(b =>
+    `${b.organization_name} ${b.room_detail?.name || ''} ${b.property_name || ''} ${b.organization_address || ''} ${b.id}`.toLowerCase().includes(term));
+  const all = bookings || [];
+  const tiles = [
+    { label: 'Total bookings', value: all.length, icon: CalendarCheck, cls: 'from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400' },
+    { label: 'Upcoming', value: groups.upcoming.length, icon: Clock, cls: 'from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400' },
+    { label: 'Completed', value: all.filter(b => b.status === 'CHECKED_OUT').length, icon: CheckCircle2, cls: 'from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400' },
+    { label: 'Cancelled', value: groups.cancelled.length, icon: XCircle, cls: 'from-rose-500/10 to-rose-500/5 text-rose-600 dark:text-rose-400' },
+  ];
 
   return (
     <GuestAccountLayout>
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">My trips</h1>
-        <p className="text-slate-500 dark:text-slate-400">All your bookings, at every property.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">My trips</h1>
+        <p className="text-slate-500 dark:text-slate-400">Track, pay, cancel and download confirmations for every stay.</p>
 
-        <div role="tablist" className="mt-6 flex gap-6 border-b border-slate-200 dark:border-slate-800">
+        <div className="mt-6 grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {tiles.map(({ label, value, icon: Icon, cls }) => (
+            <div key={label} className={`p-4 rounded-2xl bg-gradient-to-br border border-slate-200 dark:border-slate-700 ${cls}`}>
+              <Icon className="w-5 h-5" />
+              <p className="mt-2 text-2xl font-extrabold text-slate-900 dark:text-white">{bookings ? value : '–'}</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        <label className="mt-6 flex items-center gap-2.5 h-11 px-4 max-w-md rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus-within:border-green-500">
+          <Search className="w-4 h-4 text-slate-400" />
+          <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by property, room or booking ID (CX-…)"
+            aria-label="Search trips" className="w-full bg-transparent text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none" />
+        </label>
+
+        <div role="tablist" className="mt-5 flex gap-6 border-b border-slate-200 dark:border-slate-800">
           {TABS.map(t => (
             <button key={t.id} role="tab" aria-selected={tab === t.id} type="button" onClick={() => setTab(t.id)}
               className={`pb-3 -mb-px text-sm font-semibold border-b-2 transition-colors ${
-                tab === t.id ? 'border-slate-900 dark:border-white text-slate-900 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                tab === t.id ? 'border-brand-500 text-slate-900 dark:text-white' : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
               }`}>
               {t.label}{bookings && groups[t.id].length > 0 && <span className="ml-1.5 text-slate-400 font-normal">{groups[t.id].length}</span>}
             </button>
@@ -129,10 +158,10 @@ const MyTrips = () => {
             <div className="flex flex-col items-center text-center py-14 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
               <CalendarX className="w-10 h-10 text-slate-300 mb-3" />
               <p className="font-semibold text-slate-900 dark:text-white">
-                {tab === 'upcoming' ? 'No upcoming trips' : tab === 'past' ? 'No past trips yet' : 'No cancelled bookings'}
+                {term ? 'No trips match your search' : tab === 'upcoming' ? 'No upcoming trips' : tab === 'past' ? 'No past trips yet' : 'No cancelled bookings'}
               </p>
               {tab === 'upcoming' && (
-                <Link to="/book" className="mt-3 px-5 py-2.5 rounded-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">Find a room</Link>
+                <Link to="/book/stays" className="mt-3 px-5 py-2.5 rounded-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold">Find a room</Link>
               )}
             </div>
           ) : list.map(b => {
@@ -151,8 +180,8 @@ const MyTrips = () => {
                 <div className="flex-1 p-4 sm:p-5 min-w-0">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <Link to={`/book/${b.organization}`} className="text-xs font-semibold uppercase tracking-wide text-green-600 dark:text-green-400 hover:underline">{b.organization_name}</Link>
-                      <h3 className="font-semibold text-slate-900 dark:text-white">{b.room_detail?.name}</h3>
+                      <Link to={`/book/${b.organization}`} className="text-xs font-semibold uppercase tracking-wide text-brand-700 dark:text-brand-400 hover:underline">{b.organization_name}</Link>
+                      <h3 className="font-semibold text-slate-900 dark:text-white">{b.room_detail?.name} <span className="ml-1 text-xs font-medium text-slate-400">CX-{String(b.id).padStart(6, '0')}</span></h3>
                       {b.property_name && <p className="text-sm text-slate-500 dark:text-slate-400">{b.property_name}</p>}
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${s.cls}`}>{s.label}</span>
@@ -171,19 +200,35 @@ const MyTrips = () => {
                   {b.status === 'CONFIRMED' && b.can_pay_online && (
                     <p className="mt-2 text-xs text-green-700 dark:text-green-300">Confirmed! Pay now to skip paying at the front desk.</p>
                   )}
-                  {b.status === 'CONFIRMED' && (canCancel ? (
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Free cancellation until {formatDateTime(b.cancellation_deadline)}{b.is_paid ? ' — full refund' : ''}.</p>
-                  ) : (
+                  {b.status === 'CONFIRMED' && canCancel && (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Free cancellation until {formatDateTime(b.cancellation_deadline)}{b.is_paid ? ' - full refund' : ''}.</p>
+                  )}
+                  {active && !canCancel && b.cancel_request_status === 'PENDING' && (
+                    <div className="mt-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-sm text-amber-900 dark:text-amber-200">
+                      <p className="flex items-center gap-1.5 font-semibold"><Clock className="w-4 h-4" />Cancellation requested · waiting for {b.organization_name}</p>
+                      <p className="mt-0.5 text-xs">Sent {formatDateTime(b.cancel_requested_at)} - “{b.cancel_request_reason}”. Your booking stays active until they reply.</p>
+                    </div>
+                  )}
+                  {active && !canCancel && b.cancel_request_status === 'DECLINED' && (
+                    <div className="mt-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-sm text-red-800 dark:text-red-200">
+                      <p className="flex items-center gap-1.5 font-semibold"><MessageSquareX className="w-4 h-4" />{b.organization_name} declined your cancellation request</p>
+                      {b.cancel_request_reply && <p className="mt-0.5 text-xs">“{b.cancel_request_reply}”</p>}
+                    </div>
+                  )}
+                  {active && !canCancel && !b.cancel_request_status && (
                     <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      The free cancellation window has passed. To cancel, contact {b.organization_name}
-                      {b.organization_phone ? <> on <a href={`tel:${b.organization_phone}`} className="font-medium underline">{b.organization_phone}</a></> : ''}.
+                      The free cancellation window has passed. You can still ask {b.organization_name} to cancel
+                      {b.organization_phone ? <> or call them on <a href={`tel:${b.organization_phone}`} className="font-medium underline">{b.organization_phone}</a></> : ''}.
                     </p>
-                  ))}
+                  )}
+                  {b.status === 'CANCELLED' && b.cancel_request_status === 'APPROVED' && b.cancel_request_reply && (
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{b.organization_name}: “{b.cancel_request_reply}”</p>
+                  )}
                   {b.review && (
                     <div className="mt-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-700/40">
                       <p className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-slate-400">Your review <Stars value={b.review.rating} size="w-3.5 h-3.5" /></p>
                       {b.review.comment && <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">{b.review.comment}</p>}
-                      {b.review.reply && <p className="mt-2 pl-2 border-l-2 border-green-500 text-sm text-slate-600 dark:text-slate-300"><b>{b.organization_name}:</b> {b.review.reply}</p>}
+                      {b.review.reply && <p className="mt-2 pl-2 border-l-2 border-brand-500 text-sm text-slate-600 dark:text-slate-300"><b>{b.organization_name}:</b> {b.review.reply}</p>}
                     </div>
                   )}
                   {b.status === 'CANCELLED' && b.cancel_reason && (
@@ -192,7 +237,7 @@ const MyTrips = () => {
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {canPay && (
                       <button type="button" onClick={() => payNow(b)} disabled={busy}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold disabled:opacity-50">
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold disabled:opacity-50">
                         {busy && <Loader2 className="w-4 h-4 animate-spin" />} Pay {formatMoney(b.total_amount)}
                       </button>
                     )}
@@ -200,6 +245,12 @@ const MyTrips = () => {
                       <button type="button" onClick={() => cancel(b)} disabled={busy}
                         className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50">
                         Cancel booking
+                      </button>
+                    )}
+                    {active && !canCancel && b.cancel_request_status !== 'PENDING' && (
+                      <button type="button" onClick={() => setRequestFor(b)} disabled={busy}
+                        className="px-4 py-2 rounded-lg border border-red-200 dark:border-red-500/40 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50">
+                        {b.cancel_request_status === 'DECLINED' ? 'Ask again' : 'Request cancellation'}
                       </button>
                     )}
                     {b.organization_phone && ['CONFIRMED', 'CHECKED_IN', 'PENDING'].includes(b.status) && (
@@ -215,7 +266,7 @@ const MyTrips = () => {
                     )}
                     <button type="button"
                       onClick={() => downloadVoucher(b.id).catch(() => setError('Could not download the confirmation. Please try again.'))}
-                      className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-green-700 dark:text-green-400 hover:text-green-800">
+                      className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-400 hover:text-brand-800">
                       <Download className="w-4 h-4" /> Download
                     </button>
                     <button type="button" onClick={() => setHistoryId(b.id)}
@@ -231,6 +282,7 @@ const MyTrips = () => {
       </div>
       {historyId && <BookingHistoryModal bookingId={historyId} onClose={() => setHistoryId(null)} />}
       <RateStayModal booking={rateFor} onClose={() => setRateFor(null)} onSaved={load} />
+      <CancelRequestModal booking={requestFor} onClose={() => setRequestFor(null)} onSent={load} />
     </GuestAccountLayout>
   );
 };

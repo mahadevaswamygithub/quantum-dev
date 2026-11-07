@@ -33,7 +33,7 @@ ORCHESTRATOR_URL = getattr(settings, "LLM_ORCHESTRATOR_URL", "http://localhost:8
 
 # One pooled client for the process lifetime instead of opening a fresh
 # connection to the orchestrator on every single chat action (send/stream/
-# history/delete) — they all talk to the same host, so there's no reason
+# history/delete) - they all talk to the same host, so there's no reason
 # to pay TCP setup cost each time. httpx.Client is safe to reuse across
 # requests/threads.
 _orchestrator_client = httpx.Client(timeout=180.0)
@@ -130,7 +130,7 @@ class ChatSendView(ChatBase, APIView):
     """
     POST /api/chat/send/
     Body: { "message": "...", "session_id": "uuid" }
-    Returns full JSON — no streaming.
+    Returns full JSON - no streaming.
     """
 
     def post(self, request):

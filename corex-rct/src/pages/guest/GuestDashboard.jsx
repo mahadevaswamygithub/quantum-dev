@@ -26,7 +26,7 @@ const NextTrip = ({ b }) => {
           : <div className="w-full h-full flex items-center justify-center text-slate-400"><BedDouble className="w-10 h-10" /></div>}
       </div>
       <div className="flex-1 p-5">
-        <p className="text-sm font-semibold text-green-600 dark:text-green-400">{when} · {b.organization_name}</p>
+        <p className="text-sm font-semibold text-brand-700 dark:text-brand-400">{when} · {b.organization_name}</p>
         <h3 className="mt-1 text-xl font-bold text-slate-900 dark:text-white">{b.room_detail?.name}</h3>
         {b.property_name && <p className="text-sm text-slate-500 dark:text-slate-400">{b.property_name}</p>}
         <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-slate-700 dark:text-slate-200">
@@ -35,7 +35,7 @@ const NextTrip = ({ b }) => {
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {b.can_pay_online && (
-            <Link to="/book/me/trips" className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">
+            <Link to="/book/me/trips" className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold">
               Pay {formatMoney(b.total_amount)}
             </Link>
           )}
@@ -84,7 +84,7 @@ const GuestDashboard = () => {
 
   return (
     <GuestAccountLayout>
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-white">{greeting()}, {user?.first_name || 'there'}</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">{greeting()}, {user?.first_name || 'there'}</h1>
       <p className="text-slate-500 dark:text-slate-400">Your trips and bookings across every property.</p>
 
       <section className="mt-6">
@@ -98,7 +98,7 @@ const GuestDashboard = () => {
             <BedDouble className="w-10 h-10 text-slate-300 mx-auto mb-2" />
             <p className="font-semibold text-slate-900 dark:text-white">No upcoming trips</p>
             <p className="text-sm text-slate-500 dark:text-slate-400">Find a place and book your next stay.</p>
-            <Link to="/book" className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">
+            <Link to="/book/stays" className="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-brand-500 hover:bg-brand-600 text-white text-sm font-semibold">
               Find a stay <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -114,7 +114,7 @@ const GuestDashboard = () => {
                 <Link to="/book/me/trips" className="flex items-center gap-3 p-4 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 hover:border-amber-300">
                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
                   <span className="flex-1 text-sm text-amber-900 dark:text-amber-200">
-                    <b>{b.organization_name}</b> · {b.room_detail?.name} · {formatDate(b.check_in)} —{' '}
+                    <b>{b.organization_name}</b> · {b.room_detail?.name} · {formatDate(b.check_in)} -{' '}
                     {b.can_pay_online ? `payment of ${formatMoney(b.total_amount)} due` : 'waiting for the property to confirm'}
                   </span>
                   <ArrowRight className="w-4 h-4 text-amber-700" />

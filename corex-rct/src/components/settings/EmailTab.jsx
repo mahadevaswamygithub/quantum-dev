@@ -68,7 +68,7 @@ const EmailTab = () => {
     <form onSubmit={save} className="space-y-6">
       <SettingsCard title="Guest emails" description="Automatic emails to guests about their bookings, sent in your name.">
         <Toggle checked={form.send_booking_emails} onChange={v => setForm(f => ({ ...f, send_booking_emails: v }))}
-          label="Email guests about their bookings" description={form.send_booking_emails ? 'On — guests get these emails:' : 'Off — guests get no booking emails.'} />
+          label="Email guests about their bookings" description={form.send_booking_emails ? 'On - guests get these emails:' : 'Off - guests get no booking emails.'} />
         {form.send_booking_emails && (
           <ul className="mt-3 grid gap-1.5 sm:grid-cols-2 text-sm text-slate-600 dark:text-slate-300">
             {EVENTS.map(e => <li key={e} className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />{e}</li>)}
@@ -90,7 +90,7 @@ const EmailTab = () => {
           <Field label="Sender name" htmlFor="em-name" hint="What guests see in their inbox.">
             <input id="em-name" className={inputCls} value={form.from_name} onChange={set('from_name')} placeholder={orgName} maxLength={100} />
           </Field>
-          <Field label="Replies go to" htmlFor="em-reply" hint={form.reply_to ? undefined : `Leave blank to use your contact email${form.effective_reply_to ? ` (${form.effective_reply_to})` : ' — set one in Organization'}.`}>
+          <Field label="Replies go to" htmlFor="em-reply" hint={form.reply_to ? undefined : `Leave blank to use your contact email${form.effective_reply_to ? ` (${form.effective_reply_to})` : ' - set one in Organization'}.`}>
             <input id="em-reply" type="email" className={inputCls} value={form.reply_to} onChange={set('reply_to')} placeholder={form.effective_reply_to || 'frontdesk@yourhotel.com'} />
           </Field>
         </div>
@@ -146,7 +146,7 @@ const EmailTab = () => {
         {(testMsg || form.last_test_at) && (
           <p className={`mt-3 flex items-start gap-1.5 text-sm ${(testMsg ? testMsg.ok : form.last_test_ok) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
             {(testMsg ? testMsg.ok : form.last_test_ok) ? <CheckCircle2 className="w-4 h-4 mt-0.5" /> : <XCircle className="w-4 h-4 mt-0.5" />}
-            {testMsg ? testMsg.text : `Last test ${form.last_test_ok ? 'succeeded' : 'failed'} on ${new Date(form.last_test_at).toLocaleString()}${form.last_test_error ? ` — ${form.last_test_error}` : ''}`}
+            {testMsg ? testMsg.text : `Last test ${form.last_test_ok ? 'succeeded' : 'failed'} on ${new Date(form.last_test_at).toLocaleString()}${form.last_test_error ? ` - ${form.last_test_error}` : ''}`}
           </p>
         )}
       </SettingsCard>

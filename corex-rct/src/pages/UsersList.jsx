@@ -68,9 +68,9 @@ const UsersList = () => {
   const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
 
   // userAPI.getUsers() intentionally returns MSP staff + every managed
-  // sub-org's staff flattened together (UserViewSet.get_queryset — needed
+  // sub-org's staff flattened together (UserViewSet.get_queryset - needed
   // for bulk ops/exports/stats elsewhere). This page is "manage MY
-  // organization's people" though, so it defaults to just that org — a
+  // organization's people" though, so it defaults to just that org - a
   // sub-org's staff is managed from that org's own detail page instead
   // (Organizations → org → View Users).
   const ownOrgUsers = isMSP
@@ -78,7 +78,7 @@ const UsersList = () => {
     : users;
 
   // tenantAPI.getTenants() deliberately excludes the MSP's own org (it
-  // backs the Organizations page, which lists *sub*-orgs only — see
+  // backs the Organizations page, which lists *sub*-orgs only - see
   // OrganizationViewSet.get_queryset). The Add/Edit User modals need the
   // MSP's own org as a pickable target too, so it's synthesized here from
   // the logged-in user's own profile fields and prepended.
@@ -107,7 +107,7 @@ const UsersList = () => {
     return true;
   });
 
-  // Filters reshuffle the result set — back to page 1 so pagination doesn't
+  // Filters reshuffle the result set - back to page 1 so pagination doesn't
   // land on an out-of-range/empty page.
   useEffect(() => { setPage(1); }, [searchTerm, advancedFilters]);
 
@@ -300,7 +300,7 @@ const UsersList = () => {
         />
 
         <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
-          {/* Static header + toolbar — only the table below scrolls.
+          {/* Static header + toolbar - only the table below scrolls.
               Same structure/sizing as every other listing page (Organizations,
               Rooms, Properties, Activity Log): title+icon+description on the
               left, primary Add action on the right, search/filters below. */}
@@ -325,7 +325,7 @@ const UsersList = () => {
                 onClearFilters={() => setAdvancedFilters(null)}
                 filterOptions={{
                   showRole: true,
-                  // No "Organization" filter here — this page is scoped
+                  // No "Organization" filter here - this page is scoped
                   // to your own org's users by default (see ownOrgUsers
                   // above), so there's nothing else left to filter by.
                   // Sub-org staff are managed from that org's own page.
@@ -343,7 +343,7 @@ const UsersList = () => {
             </div>
           </div>
 
-          {/* Users Table — scrollable. overflow-auto lives directly on this
+          {/* Users Table - scrollable. overflow-auto lives directly on this
               card (not a nested overflow-x-auto wrapper) so the sticky thead
               below has one real scrolling ancestor to stick within. */}
           <div className="flex-1 overflow-auto min-h-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
@@ -564,7 +564,7 @@ const UsersList = () => {
 // Role Change Modal Component
 const RoleChangeModal = ({ isOpen, onClose, onConfirm, selectedCount, currentOrgType = 'STP' }) => {
   // Bulk role changes only offer roles that fit the acting admin's own
-  // scope (an STP admin's selection is always STP-org users) — the same
+  // scope (an STP admin's selection is always STP-org users) - the same
   // MSP/STP mismatch guard as Add/Edit User, see UserModals.jsx.
   const roleOptions = ROLE_OPTIONS[currentOrgType] || ROLE_OPTIONS.STP;
   const [newRole, setNewRole] = useState(roleOptions[0].value);

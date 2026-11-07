@@ -130,7 +130,7 @@ class SalaryRecordViewSet(HRScopedMixin, viewsets.ModelViewSet):
             details = [
                 ("Name", record.user.get_full_name()),
                 ("Email", record.user.email),
-                ("Organization", record.user.organization_name or '—'),
+                ("Organization", record.user.organization_name or '-'),
                 ("Employee ID", record.user.employee_id or str(record.user.id)),
             ]
             for i, (k, v) in enumerate(details):
@@ -186,10 +186,10 @@ class SalaryRecordViewSet(HRScopedMixin, viewsets.ModelViewSet):
         except ImportError:
             # Fallback plain text
             content = f"""
-                PAYSLIP — {record.month}
+                PAYSLIP - {record.month}
                 Employee: {record.user.get_full_name()}
                 Email: {record.user.email}
-                Organization: {record.user.organization_name or '—'}
+                Organization: {record.user.organization_name or '-'}
                 Days Present: {record.days_present}
                 Daily Rate: ₹{record.daily_rate}
                 Gross Salary: ₹{record.gross_salary}

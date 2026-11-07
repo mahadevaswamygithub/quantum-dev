@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { bookingAPI } from '../services/api';
 
 /** Fetches {id, name, org_type} for a booking-site org via the public,
- * unauthenticated endpoint — shared by every customer-portal page that
+ * unauthenticated endpoint - shared by every customer-portal page that
  * needs to show "Booking for: {org name}" before/after login. */
 export const useOrgInfo = (orgId) => {
   const [org, setOrg] = useState(null);

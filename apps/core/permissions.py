@@ -2,7 +2,7 @@
 Shared, cross-app role-scoping helpers.
 
 CoreX's roles (MSP_ADMIN/MSP_USER, STP_ADMIN/STP_USER, EMPLOYEE) determine
-which organizations — and therefore which users/records within them — a
+which organizations - and therefore which users/records within them - a
 request is allowed to see. That "which org IDs is this user allowed to see"
 rule used to be copy-pasted separately in apps.users and apps.tenants; it
 now lives here once.
@@ -19,7 +19,7 @@ def get_visible_organization_ids(user, include_own_org=True):
         sub-orgs (e.g. an "organizations I administer" list).
       - STP_ADMIN / STP_USER / CUSTOMER → their own org only (a CUSTOMER is
         a self-registered end user of one specific ROOM_BOOKING STP org,
-        see apps.bookings — same single-org scoping as STP staff)
+        see apps.bookings - same single-org scoping as STP staff)
       - anything else (e.g. EMPLOYEE, or no org) → None, meaning "this role
         isn't org-scoped the same way; caller decides what to do" (e.g.
         scope to the user themself, or return nothing)

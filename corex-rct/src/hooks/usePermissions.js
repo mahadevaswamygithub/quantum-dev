@@ -5,7 +5,7 @@ const ADMIN_TIERS = ['MSP_ADMIN', 'STP_ADMIN'];
 
 /**
  * Staff permission checks for showing/hiding nav, pages and buttons.
- * `user.permissions` comes from the API (apps.core.access) — admins already
+ * `user.permissions` comes from the API (apps.core.access) - admins already
  * receive every code for their portal, so `can()` needs no special case;
  * `isAdmin` is only for admin-only screens such as editing roles.
  * The API enforces the same codes, so hiding something here is never the

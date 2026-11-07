@@ -11,7 +11,7 @@ from ..models import User, UserDocument
 
 def _check_role_matches_org_type(role, organization):
     """MSP_* roles only make sense for a user in an MSP organization, and
-    vice versa — an STP admin (or MSP admin managing an STP sub-org) must
+    vice versa - an STP admin (or MSP admin managing an STP sub-org) must
     never be able to grant an MSP role, since MSP-role routes/permissions
     are role-only checks elsewhere (not re-scoped to the org), so a
     mismatched role would be a real privilege escalation, not just a
@@ -25,12 +25,12 @@ def _check_role_matches_org_type(role, organization):
         )
     if not is_msp_role and organization.tenant_type == 'MSP':
         raise serializers.ValidationError(
-            {'role': 'This is an MSP organization — assign an MSP role, or pick an STP organization for this role.'}
+            {'role': 'This is an MSP organization - assign an MSP role, or pick an STP organization for this role.'}
         )
 
 
 def _guard_admin_accounts(request, new_role, instance=None):
-    """Only admins may create admins, promote to admin, or edit an admin —
+    """Only admins may create admins, promote to admin, or edit an admin -
     otherwise a staff user with "manage users" could make themselves admin."""
     from apps.core.access import ADMIN_TIERS
     me = getattr(request, 'user', None)
@@ -91,17 +91,17 @@ def send_invite_email(user):
 class UserSerializer(serializers.ModelSerializer):
     organization_name = serializers.SerializerMethodField()
     organization_id = serializers.SerializerMethodField()
-    # The user's own organization's business vertical — lets the frontend
+    # The user's own organization's business vertical - lets the frontend
     # conditionally show vertical-specific nav/routes (e.g. Rooms/Bookings
     # for a ROOM_BOOKING org) straight off the login/`me` response, with no
     # extra API call. Not a field on User itself; it's read from
     # organization.org_type (apps.tenants.models.Organization).
     org_type = serializers.SerializerMethodField()
-    # The user's own organization's logo — lets the navbar show org branding
+    # The user's own organization's logo - lets the navbar show org branding
     # straight off the login/`me` response, same reasoning as org_type above.
     organization_logo = serializers.SerializerMethodField()
     # Staff access (apps.core.access): the custom role and the resulting
-    # permission codes — the frontend shows/hides nav, pages and buttons
+    # permission codes - the frontend shows/hides nav, pages and buttons
     # from `permissions`; the API enforces the same codes.
     access_role = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
@@ -152,7 +152,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserCreateSerializer(serializers.ModelSerializer):
-    # No password field — admins invite a user by email instead of setting
+    # No password field - admins invite a user by email instead of setting
     # one on their behalf. The account is created with an unusable password
     # (blocks login until they set one) and an emailed link, using the same
     # uid/token mechanism as the forgot-password flow, lets them set it.
@@ -180,7 +180,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
     def validate_role(self, value):
         # CUSTOMER accounts are self-registered only (apps.bookings'
         # customer-registration endpoint sets their own password
-        # immediately) — the staff invite flow this serializer backs is a
+        # immediately) - the staff invite flow this serializer backs is a
         # different UX (unusable password + emailed set-password link) and
         # was never meant to create end customers.
         if value == 'CUSTOMER':
@@ -259,7 +259,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        # Partial updates may omit role/organization_id entirely — fall back
+        # Partial updates may omit role/organization_id entirely - fall back
         # to whatever the instance already has for whichever one is missing.
         role = data.get('role', getattr(self.instance, 'role', None))
         _guard_admin_accounts(self.context.get('request'), role, self.instance)

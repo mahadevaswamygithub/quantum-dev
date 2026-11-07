@@ -6,9 +6,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  *
  *   const { refresh, refreshing, lastUpdated } = useAutoRefresh(fetchData, { interval: 30000 });
  *
- * - `refresh()`  — for a manual ⟳ button.
+ * - `refresh()`  - for a manual ⟳ button.
  * - On returning to the browser tab, refetches if the data is older than `minAge`.
- * - `interval` (ms, optional) — background refetch while the tab is visible.
+ * - `interval` (ms, optional) - background refetch while the tab is visible.
  *
  * The page keeps doing its own first load; this only handles refreshes, and
  * never runs two at once.

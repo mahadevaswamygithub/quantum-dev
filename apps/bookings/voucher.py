@@ -82,7 +82,7 @@ def build_voucher_pdf(booking):
     story += [header, Spacer(1, 8)]
 
     def kv_grid(pairs, cols=3):
-        cells = [[Paragraph(k.upper(), label), Paragraph(v or '—', body)] for k, v in pairs]
+        cells = [[Paragraph(k.upper(), label), Paragraph(v or '-', body)] for k, v in pairs]
         rows = []
         for i in range(0, len(cells), cols):
             chunk = cells[i:i + cols] + [['', '']] * (cols - len(cells[i:i + cols]))
@@ -118,7 +118,7 @@ def build_voucher_pdf(booking):
     for p in booking.payments.filter(status__in=['PAID', 'REFUNDED']).order_by('paid_at', 'id'):
         when = p.paid_at.astimezone(tz).strftime('%d %b %Y') if p.paid_at else ''
         refunded = p.status == 'REFUNDED'
-        rows.append([f'Payment received — {p.get_method_display()}' + (' (refunded)' if refunded else ''),
+        rows.append([f'Payment received - {p.get_method_display()}' + (' (refunded)' if refunded else ''),
                      when, f'refunded {_money(p.amount)}' if refunded else f'- {_money(p.amount)}'])
     rows.append(['Amount paid', '', _money(paid)])
     rows.append(['Balance due', 'Pay at the property' if due > 0 and booking.payment_method == 'AT_PROPERTY' else '', _money(due)])

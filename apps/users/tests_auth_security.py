@@ -68,6 +68,7 @@ class AuthSecurityTests(TestCase):
                 r = post(ChangePasswordView, {'old_password': STRONG, 'new_password': weak, 'confirm_password': weak}, user=self.user)
                 self.assertEqual(r.status_code, 400)
 
+    @override_settings(ALLOW_PUBLIC_ORG_SIGNUP=False)  # the default, whatever the local .env says
     def test_public_signup_closed_by_default_and_never_creates_hidden_admin(self):
         data = {'username': 'own', 'email': 'own@example.com', 'first_name': 'O', 'last_name': 'W',
                 'password': STRONG, 'organization_name': 'Open Hotel'}

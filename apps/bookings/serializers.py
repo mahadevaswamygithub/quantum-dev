@@ -21,7 +21,7 @@ class PropertySerializer(RoundedCoordinatesMixin, serializers.ModelSerializer):
         read_only_fields = ['id', 'organization', 'created_at', 'updated_at']
 
     def validate(self, data):
-        # Same reasoning as RoomSerializer.validate() below — organization
+        # Same reasoning as RoomSerializer.validate() below - organization
         # is set server-side by the view, this just defends against it
         # somehow not being a ROOM_BOOKING org.
         org = self.instance.organization if self.instance else self.context.get('organization')
@@ -54,8 +54,8 @@ class RoomSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         # organization is set explicitly by the view (the staff member's
-        # own org) rather than accepted from the client — see
-        # RoomViewSet.perform_create — but on update we still need to
+        # own org) rather than accepted from the client - see
+        # RoomViewSet.perform_create - but on update we still need to
         # reject the request if the org somehow isn't a room-booking STP
         # org (defensive; the view already only lets ROOM_BOOKING-org staff
         # reach this serializer at all).
@@ -70,7 +70,7 @@ class RoomSerializer(serializers.ModelSerializer):
 
 
 class BookingRoomBriefSerializer(serializers.ModelSerializer):
-    """Nested room summary for the reservation list — avoids the frontend
+    """Nested room summary for the reservation list - avoids the frontend
     needing a second request per booking just to show what was booked."""
     primary_image = serializers.SerializerMethodField()
 
@@ -94,7 +94,7 @@ class BookingSerializer(serializers.ModelSerializer):
     customer_name = serializers.SerializerMethodField()
     customer_email = serializers.SerializerMethodField()
     customer_phone = serializers.SerializerMethodField()
-    # A guest's trips can span several properties — say which one.
+    # A guest's trips can span several properties - say which one.
     organization_name = serializers.CharField(source='organization.name', read_only=True)
     organization_phone = serializers.CharField(source='organization.contact_phone', read_only=True)
     organization_address = serializers.CharField(source='organization.address', read_only=True)
@@ -119,9 +119,12 @@ class BookingSerializer(serializers.ModelSerializer):
             'customer', 'customer_name', 'customer_email', 'customer_phone',
             'check_in', 'check_out', 'nights', 'guests', 'status', 'total_amount',
             'special_requests', 'payment_status', 'is_paid', 'amount_paid', 'balance_due', 'can_pay_online',
-            'review', 'can_review', 'payment_method', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at',
+            'review', 'can_review', 'payment_method', 'cancelled_at', 'cancel_reason',
+            'cancel_request_status', 'cancel_request_reason', 'cancel_requested_at', 'cancel_request_reply',
+            'created_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'organization', 'property', 'customer', 'status', 'total_amount', 'payment_method', 'cancelled_at', 'cancel_reason', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'organization', 'property', 'customer', 'status', 'total_amount', 'payment_method', 'cancelled_at', 'cancel_reason',
+                            'cancel_request_status', 'cancel_request_reason', 'cancel_requested_at', 'cancel_request_reply', 'created_at', 'updated_at']
 
     def get_nights(self, obj):
         return (obj.check_out - obj.check_in).days
@@ -191,7 +194,7 @@ class BookingSerializer(serializers.ModelSerializer):
 
 
 class BookingCreateSerializer(serializers.ModelSerializer):
-    """What a CUSTOMER submits to create a reservation — everything else
+    """What a CUSTOMER submits to create a reservation - everything else
     (organization, customer, status, total_amount) is derived server-side
     in BookingViewSet.perform_create, never trusted from the client."""
 
@@ -239,7 +242,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 class CustomerRegisterSerializer(serializers.ModelSerializer):
     """Self-service guest sign-up. The account works at every property;
     organization_id only records which property's site they signed up on
-    (it's also where they appear in that org's user list). Guests — a real password set by the customer themself, unlike
+    (it's also where they appear in that org's user list). Guests - a real password set by the customer themself, unlike
     UserCreateSerializer's staff-invite flow (unusable password + emailed
     set-password link). Intentionally a separate serializer/endpoint so
     the two account-creation paths never cross."""
@@ -304,7 +307,7 @@ class BookingSettingsSerializer(serializers.ModelSerializer):
         check_out = data.get('check_out_time', getattr(self.instance, 'check_out_time', None))
         if check_in and check_out and check_out >= check_in:
             # Check-out is on the *next* day, so it should be earlier in the
-            # day than check-in — otherwise a room can't be turned around.
+            # day than check-in - otherwise a room can't be turned around.
             raise serializers.ValidationError(
                 {'check_out_time': 'Check-out time should be earlier in the day than check-in time.'}
             )
@@ -312,18 +315,21 @@ class BookingSettingsSerializer(serializers.ModelSerializer):
 
 
 class PublicRoomSerializer(serializers.ModelSerializer):
-    """What an anonymous visitor of a booking site may see about a room —
+    """What an anonymous visitor of a booking site may see about a room -
     no organization internals. `available` is filled in by the view when
     the visitor has picked dates (None otherwise)."""
     images = RoomImageSerializer(many=True, read_only=True)
     property_name = serializers.CharField(source='property.name', read_only=True, default='')
+    # The building's own public details, for the room page's "About the property".
+    property_description = serializers.CharField(source='property.description', read_only=True, default='')
+    property_address = serializers.CharField(source='property.address', read_only=True, default='')
     available = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
         fields = [
             'id', 'name', 'room_type', 'description', 'capacity', 'price_per_night',
-            'amenities', 'images', 'property', 'property_name', 'available',
+            'amenities', 'images', 'property', 'property_name', 'property_description', 'property_address', 'available',
         ]
 
     def get_available(self, obj):
@@ -348,7 +354,7 @@ class ReviewCreateSerializer(serializers.Serializer):
 
 
 def _guest_display_name(user):
-    """'Kumar A.' — public reviews never show a full surname or email."""
+    """'Kumar A.' - public reviews never show a full surname or email."""
     first = (user.first_name or 'Guest').strip()
     last = (user.last_name or '').strip()
     return f"{first} {last[0]}." if last and not user.email.endswith('@deleted.invalid') else first

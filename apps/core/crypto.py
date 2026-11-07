@@ -1,7 +1,7 @@
 """Encrypting small secrets at rest (e.g. an organization's SMTP password).
 
 Key: settings.FIELD_ENCRYPTION_KEY (a Fernet key) if set, otherwise derived
-from SECRET_KEY — so set FIELD_ENCRYPTION_KEY explicitly in production if you
+from SECRET_KEY - so set FIELD_ENCRYPTION_KEY explicitly in production if you
 ever rotate SECRET_KEY, or stored secrets become unreadable (and must be re-entered).
 """
 import base64

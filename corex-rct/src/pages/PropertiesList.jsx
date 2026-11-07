@@ -67,7 +67,7 @@ const PropertiesList = () => {
                 <Building2 className="w-6 h-6 text-green-500" /> Properties
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-                {filtered.length} of {properties.length} buildings — guests pick one of these before choosing a room
+                {filtered.length} of {properties.length} buildings - guests pick one of these before choosing a room
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -82,7 +82,7 @@ const PropertiesList = () => {
             <Card>
               <EmptyState
                 icon={Building2} title="No properties yet"
-                description="Add each building/branch first — rooms belong to a property, and guests choose one before browsing rooms."
+                description="Add each building/branch first - rooms belong to a property, and guests choose one before browsing rooms."
               />
             </Card>
           ) : (

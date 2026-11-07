@@ -4,11 +4,15 @@ import { ChevronDown, LogOut, Settings as SettingsIcon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ThemeToggle from './ThemeToggle';
 import Avatar from './common/Avatar';
+import NotificationsBell from './guest/NotificationsBell';
+import { usePermissions } from '../hooks/usePermissions';
+import { bookingAPI } from '../services/api';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const { can } = usePermissions();
 
   const isMSP = user?.role === 'MSP_ADMIN' || user?.role === 'MSP_USER';
   const isSTP = user?.role === 'STP_ADMIN' || user?.role === 'STP_USER';
@@ -53,6 +57,9 @@ const Navbar = () => {
 
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          {isSTP && user?.org_type === 'ROOM_BOOKING' && can('bookings.view') && (
+            <NotificationsBell load={bookingAPI.getStaffNotifications} footer={{ to: '/stp/bookings', label: 'Open bookings' }} />
+          )}
 
           {/* Profile menu */}
           <div className="relative">

@@ -1,5 +1,5 @@
 """
-log_activity() — the one call site every view uses to write an
+log_activity() - the one call site every view uses to write an
 ActivityLog row. Kept deliberately simple (no signals, no middleware
 magic) to match this codebase's existing style of explicit, readable calls
 at the point of action (see e.g. apps.users.serializers.users._send_invite_email).
@@ -23,7 +23,7 @@ def log_activity(request, action, *, obj=None, model_name='', object_repr='',
       passed explicitly (needed for LOGIN, where the log happens inside the
       same request that just authenticated the user).
     - `obj`, if given, supplies model_name/object_id/object_repr
-      automatically — pass object_repr/model_name directly instead when
+      automatically - pass object_repr/model_name directly instead when
       `obj` is about to be deleted (repr it into the log while it still
       exists) or already gone.
     - `organization` should be the org this event is *about*: the target
@@ -64,7 +64,7 @@ def diff_fields(instance, validated_data, fields):
     Snapshot-free diff helper for UPDATE logging: compares `instance`'s
     *current* attribute values (call this BEFORE serializer.save()) against
     whatever `validated_data` would set them to, for the given `fields`.
-    Returns {field: [old, new]} for only the fields that actually change —
+    Returns {field: [old, new]} for only the fields that actually change -
     a PUT that resends unchanged values doesn't show up as a no-op "change".
     """
     changes = {}

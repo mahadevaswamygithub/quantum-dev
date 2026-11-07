@@ -173,7 +173,7 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
   if (!isOpen || !organization) return null;
 
   // Uploads immediately (like the profile-picture camera button elsewhere)
-  // rather than waiting on the form's Save — a logo isn't a form field the
+  // rather than waiting on the form's Save - a logo isn't a form field the
   // update endpoint accepts, it's its own multipart upload_logo action.
   const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];

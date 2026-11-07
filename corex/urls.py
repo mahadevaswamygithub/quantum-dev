@@ -1,8 +1,8 @@
 """
-corex/urls.py — TENANT SCHEMA urlconf, used for requests resolved to a
+corex/urls.py - TENANT SCHEMA urlconf, used for requests resolved to a
 tenant-specific domain (as opposed to corex/urls_public.py, used for the
 public schema). Reproduces the exact endpoint set the old flat
-apps/users/urls.py exposed here: auth + user CRUD + salary settings only —
+apps/users/urls.py exposed here: auth + user CRUD + salary settings only -
 attendance/salary-records/salary-advances/leaves were never wired into this
 urlconf and stay that way.
 """

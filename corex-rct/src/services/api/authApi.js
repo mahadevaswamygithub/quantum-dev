@@ -10,7 +10,7 @@ export const authAPI = {
   status2fa: () => api.get('/auth/2fa/status/'),
   disable2fa: (password, code) => api.post('/auth/2fa/disable/', { password, code }),
   newBackupCodes: (code) => api.post('/auth/2fa/backup-codes/', { code }),
-  // { enabled } — is public organization sign-up open?
+  // { enabled } - is public organization sign-up open?
   signupStatus: () => api.get('/auth/register/'),
   login: (data) => api.post('/auth/login/', data),
   refreshToken: (refresh) => api.post('/auth/token/refresh/', { refresh }),
@@ -25,7 +25,7 @@ export const authAPI = {
   // never block the user from actually logging out client-side.
   logout: async () => {
     // Sends this device's refresh token so the server revokes it (it can't be reused after logout).
-    try { await api.post('/auth/logout/', { refresh: tokenStorage.get('refreshToken') }); } catch { /* ignore — logout proceeds regardless */ }
+    try { await api.post('/auth/logout/', { refresh: tokenStorage.get('refreshToken') }); } catch { /* ignore - logout proceeds regardless */ }
     tokenStorage.clear();
   },
 };

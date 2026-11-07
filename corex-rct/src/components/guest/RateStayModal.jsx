@@ -40,7 +40,7 @@ const RateStayModal = ({ booking, onClose, onSaved }) => {
     }
   };
 
-  const field = 'mt-1 w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500';
+  const field = 'mt-1 w-full px-3 py-2 text-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-brand-500';
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/50 p-0 sm:p-4" onClick={onClose}>
@@ -74,12 +74,12 @@ const RateStayModal = ({ booking, onClose, onSaved }) => {
           <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
             <Lock className="w-3.5 h-3.5" /> Private note to the property <span className="font-normal text-slate-400">(optional)</span>
           </span>
-          <textarea rows={2} value={privateNote} onChange={e => setPrivateNote(e.target.value)} maxLength={2000} placeholder="Only the property sees this — e.g. the AC was noisy." className={field} />
+          <textarea rows={2} value={privateNote} onChange={e => setPrivateNote(e.target.value)} maxLength={2000} placeholder="Only the property sees this - e.g. the AC was noisy." className={field} />
         </label>
 
         {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button type="submit" disabled={saving}
-          className="mt-5 w-full py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+          className="mt-5 w-full py-3 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
           {saving && <Loader2 className="w-4 h-4 animate-spin" />} Submit review
         </button>
       </form>

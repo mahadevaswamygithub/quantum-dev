@@ -21,7 +21,7 @@ class OrgRole(models.Model):
         constraints = [models.UniqueConstraint(fields=['organization', 'name'], name='uniq_role_name_per_org')]
 
     def __str__(self):
-        return f"{self.name} — {self.organization.name}"
+        return f"{self.name} - {self.organization.name}"
 
 
 class User(AbstractUser):
@@ -32,7 +32,7 @@ class User(AbstractUser):
         ('STP_USER', 'STP User'),
         ('EMPLOYEE', 'Employee'),
         # Self-registered end customer of a ROOM_BOOKING-type STP org (see
-        # apps.bookings) — never assignable from the staff Add/Edit User
+        # apps.bookings) - never assignable from the staff Add/Edit User
         # forms, only created via the customer self-registration endpoint.
         ('CUSTOMER', 'Customer'),
     ]
@@ -185,7 +185,7 @@ class SalarySettings(models.Model):
         db_table = 'salary_settings'
  
     def __str__(self):
-        return f"Salary Settings — {self.organization.name}"
+        return f"Salary Settings - {self.organization.name}"
  
  
 class SalaryRecord(models.Model):
@@ -221,7 +221,7 @@ class SalaryRecord(models.Model):
         ordering = ['-month']
  
     def __str__(self):
-        return f"{self.user.get_full_name()} — {self.month}"
+        return f"{self.user.get_full_name()} - {self.month}"
  
     def calculate(self):
         self.gross_salary = self.daily_rate * self.days_present
@@ -259,7 +259,7 @@ class SalaryAdvance(models.Model):
         ordering = ['-created_at']
  
     def __str__(self):
-        return f"{self.user.get_full_name()} — ₹{self.amount} ({self.status})"
+        return f"{self.user.get_full_name()} - ₹{self.amount} ({self.status})"
  
     @property
     def date(self):
@@ -324,7 +324,7 @@ class LeaveRequest(models.Model):
         ]
  
     def __str__(self):
-        return f"{self.user.get_full_name()} — {self.leave_type} ({self.from_date} to {self.to_date})"
+        return f"{self.user.get_full_name()} - {self.leave_type} ({self.from_date} to {self.to_date})"
  
     def save(self, *args, **kwargs):
         if self.from_date and self.to_date:
@@ -346,14 +346,14 @@ class LeaveBalance(models.Model):
         unique_together = ('user', 'leave_type', 'year')
 
     def __str__(self):
-        return f"{self.user.get_full_name()} — {self.leave_type} {self.year}"
+        return f"{self.user.get_full_name()} - {self.leave_type} {self.year}"
 
 
 class ImpersonationToken(models.Model):
     """Single-use, short-lived handoff for MSP-admin-initiated impersonation.
 
     Minted server-side by OrganizationViewSet.impersonate() and immediately
-    consumed by ImpersonationExchangeView in a fresh browser tab — the actual
+    consumed by ImpersonationExchangeView in a fresh browser tab - the actual
     JWT is never placed in a URL, only this opaque one-time code is.
     """
     code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
@@ -391,4 +391,4 @@ class UserTwoFactor(models.Model):
         db_table = 'user_two_factor'
 
     def __str__(self):
-        return f"2FA {'on' if self.enabled else 'pending'} — {self.user.email}"
+        return f"2FA {'on' if self.enabled else 'pending'} - {self.user.email}"

@@ -1,5 +1,5 @@
 """
-User CRUD endpoints — mounted at /api/users/.
+User CRUD endpoints - mounted at /api/users/.
 
 /api/users/list/           GET=list  POST=create
 /api/users/list/<id>/      GET=detail PUT=update DELETE=delete

@@ -43,7 +43,7 @@ ALLOWED_HOSTS = config(
 )
 # "backend" is the Docker Compose service name the orchestrator's
 # server-to-server tool calls hit (DJANGO_API_BASE_URL=http://backend:8000)
-# — always allow it regardless of how ALLOWED_HOSTS above is customized, so
+# - always allow it regardless of how ALLOWED_HOSTS above is customized, so
 # nobody has to remember to add it in .env.prod. Not a meaningful attack
 # surface: it's only resolvable inside the compose network, and there's
 # already a Domain row (see bootstrap_public_tenant) routing it to the
@@ -53,7 +53,7 @@ if 'backend' not in ALLOWED_HOSTS:
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
-# Razorpay (apps.bookings payment flow) — get TEST-mode keys from
+# Razorpay (apps.bookings payment flow) - get TEST-mode keys from
 # https://dashboard.razorpay.com/app/keys after enabling test mode.
 # Left blank by default; views.py returns a clean 503 rather than crashing
 # when these aren't configured.
@@ -181,6 +181,7 @@ REST_FRAMEWORK = {
         'password_reset': config('THROTTLE_PASSWORD_RESET', default='5/hour'),
         'signup': config('THROTTLE_SIGNUP', default='10/hour'),
         'impersonation': config('THROTTLE_IMPERSONATION', default='30/hour'),
+        'assistant': config('THROTTLE_ASSISTANT', default='30/min'),
     },
 }
 
@@ -264,7 +265,7 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
-# Periodic jobs — run by `celery -A corex beat` (see README → Redis + Celery).
+# Periodic jobs - run by `celery -A corex beat` (see README → Redis + Celery).
 CELERY_BEAT_SCHEDULE = {
     'expire-pending-bookings': {
         'task': 'apps.bookings.tasks.expire_pending_bookings',
@@ -318,11 +319,11 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-# Only used by `collectstatic` (production/Docker) — WhiteNoise serves from here.
+# Only used by `collectstatic` (production/Docker) - WhiteNoise serves from here.
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {
     # Defining STORAGES at all (Django 5.1+) replaces the old
-    # DEFAULT_FILE_STORAGE/STATICFILES_STORAGE settings entirely — "default"
+    # DEFAULT_FILE_STORAGE/STATICFILES_STORAGE settings entirely - "default"
     # must be listed explicitly or FileField/ImageField uploads (profile
     # pictures, room images, documents) break with InvalidStorageError.
     "default": {
@@ -333,7 +334,7 @@ STORAGES = {
     },
 }
 
-# Media (user uploads — profile pictures, org logos/covers, room images,
+# Media (user uploads - profile pictures, org logos/covers, room images,
 # employee documents). Kept in one git-ignored folder, outside the source tree,
 # so uploads never get committed. upload_to paths ('room_images/', ...) are
 # relative to this folder, so stored file names didn't change when it moved.
@@ -369,3 +370,11 @@ LOGGING = {
 
 
 LLM_ORCHESTRATOR_URL = config('LLM_ORCHESTRATOR_URL', default='http://localhost:8002')
+
+# Guest chat assistant on the booking site. Built-in answers always work;
+# questions it doesn't recognise go to a private Ollama model (no tools, only
+# public facts). Set GUEST_ASSISTANT_LLM=False to use the built-in helper only.
+GUEST_ASSISTANT_LLM = config('GUEST_ASSISTANT_LLM', default=True, cast=bool)
+GUEST_ASSISTANT_LLM_URL = config('GUEST_ASSISTANT_LLM_URL', default='http://localhost:11434')
+GUEST_ASSISTANT_MODEL = config('GUEST_ASSISTANT_MODEL', default='llama3.2')
+GUEST_ASSISTANT_LLM_TIMEOUT = config('GUEST_ASSISTANT_LLM_TIMEOUT', default=25, cast=int)

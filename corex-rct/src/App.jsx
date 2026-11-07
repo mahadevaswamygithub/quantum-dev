@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import PrivateRoute from './components/PrivateRoute';
@@ -35,6 +35,13 @@ import ReviewsPage from './pages/ReviewsPage';
 
 // Room-booking customer portal (public-ish, org-scoped by URL)
 import BookingHome from './pages/BookingHome';
+import StaysSearch from './pages/guest/StaysSearch';
+import GuestRequests from './pages/guest/GuestRequests';
+import GuestWishlist from './pages/guest/GuestWishlist';
+import GuestSettings from './pages/guest/GuestSettings';
+import GuestHelp from './pages/guest/GuestHelp';
+import GuestAbout from './pages/guest/GuestAbout';
+import RoomCalendar from './pages/RoomCalendar';
 import CustomerLogin from './pages/CustomerLogin';
 import CustomerRegister from './pages/CustomerRegister';
 import GuestHome from './pages/guest/GuestHome';
@@ -49,7 +56,7 @@ import EmployeePortal from './pages/EmployeePortal';
 
 const MSP_ROLES = ['MSP_ADMIN', 'MSP_USER'];
 const STP_ROLES = ['STP_ADMIN', 'STP_USER'];
-// Activity log is admin-only — matches ActivityLogViewSet.get_queryset on the backend.
+// Activity log is admin-only - matches ActivityLogViewSet.get_queryset on the backend.
 
 const AppRoutes = () => {
   const { user } = useAuth();
@@ -65,7 +72,7 @@ const AppRoutes = () => {
       // Without this, a logged-in CUSTOMER hitting "/" or "/login" would
       // fall to the '/login' default below, and /login's own
       // `user ? <Navigate to={defaultRoute()} /> : <Login />` would then
-      // redirect straight back to itself — an infinite loop.
+      // redirect straight back to itself - an infinite loop.
       case 'CUSTOMER': return '/book/me';
       default: return '/login';
     }
@@ -74,21 +81,29 @@ const AppRoutes = () => {
   return (
     <Routes>
       {/* ── Public ── */}
-      <Route path="/login" element={user ? <Navigate to={defaultRoute()} /> : <Login />} />
+      {/* Staff already signed in go to their portal; a signed-in guest (e.g. "Partner login" on the
+          booking site) still gets the staff login, since a guest account can't open the portal. */}
+      <Route path="/login" element={user && user.role !== 'CUSTOMER' ? <Navigate to={defaultRoute()} /> : <Login />} />
       <Route path="/register" element={user ? <Navigate to={defaultRoute()} /> : <Register />} />
       <Route path="/reset-password/:uid/:token" element={<ResetPassword />} />
       <Route path="/impersonate/:code" element={<ImpersonateSession />} />
 
       {/* ── Room-booking customer portal (separate from the admin login above) ── */}
       <Route path="/book" element={<BookingHome />} />
+      <Route path="/book/stays" element={<StaysSearch />} />
+      <Route path="/book/help" element={<GuestHelp />} />
+      <Route path="/book/about" element={<GuestAbout />} />
       <Route path="/book/login" element={<CustomerLogin />} />
       <Route path="/book/register" element={<CustomerRegister />} />
       <Route path="/book/:orgId/login" element={<CustomerLogin />} />
       <Route path="/book/:orgId/register" element={<CustomerRegister />} />
-      {/* The guest's own account — not tied to any one property */}
+      {/* The guest's own account - not tied to any one property */}
       <Route path="/book/me" element={<CustomerPrivateRoute><GuestDashboard /></CustomerPrivateRoute>} />
       <Route path="/book/me/trips" element={<CustomerPrivateRoute><MyTrips /></CustomerPrivateRoute>} />
       <Route path="/book/me/profile" element={<CustomerPrivateRoute><GuestProfile /></CustomerPrivateRoute>} />
+      <Route path="/book/me/requests" element={<CustomerPrivateRoute><GuestRequests /></CustomerPrivateRoute>} />
+      <Route path="/book/me/wishlist" element={<CustomerPrivateRoute><GuestWishlist /></CustomerPrivateRoute>} />
+      <Route path="/book/me/settings" element={<CustomerPrivateRoute><GuestSettings /></CustomerPrivateRoute>} />
       {/* Public: anyone can browse; sign-in is asked for only at "Reserve" */}
       <Route path="/book/:orgId" element={<GuestHome />} />
       <Route path="/book/:orgId/properties/:propertyId" element={<GuestHome />} />
@@ -120,6 +135,7 @@ const AppRoutes = () => {
       <Route path="/stp/properties" element={<PrivateRoute allowedRoles={STP_ROLES} perm="rooms.view"><PropertiesList /></PrivateRoute>} />
       <Route path="/stp/rooms" element={<PrivateRoute allowedRoles={STP_ROLES} perm="rooms.view"><RoomsList /></PrivateRoute>} />
       <Route path="/stp/bookings" element={<PrivateRoute allowedRoles={STP_ROLES} perm="bookings.view"><BookingsList /></PrivateRoute>} />
+      <Route path="/stp/calendar" element={<PrivateRoute allowedRoles={STP_ROLES} perm="bookings.view"><RoomCalendar /></PrivateRoute>} />
       <Route path="/stp/guests" element={<PrivateRoute allowedRoles={STP_ROLES} perm="guests.view"><GuestsList /></PrivateRoute>} />
       <Route path="/stp/collections" element={<PrivateRoute allowedRoles={STP_ROLES} perm="payments.report"><CollectionsPage /></PrivateRoute>} />
       <Route path="/stp/reviews" element={<PrivateRoute allowedRoles={STP_ROLES} perm="reviews.view"><ReviewsPage /></PrivateRoute>} />
@@ -142,14 +158,16 @@ const AppRoutes = () => {
 
 const AppWithChat = () => {
   const { user } = useAuth();
+  // The booking site has its own guest assistant (components/guest/GuestChat).
+  const onBookingSite = useLocation().pathname.startsWith('/book');
   return (
     <>
       <ImpersonationBanner />
       <AppRoutes />
-      {/* Org-management assistant — not relevant to EMPLOYEE (self-service
+      {/* Org-management assistant - not relevant to EMPLOYEE (self-service
           portal) or CUSTOMER (public booking site; its tools query
           Organization/User data a customer has no access to anyway). */}
-      {user && !['EMPLOYEE', 'CUSTOMER'].includes(user.role) && (
+      {user && !onBookingSite && !['EMPLOYEE', 'CUSTOMER'].includes(user.role) && (
         <ChatAssistant sessionId={`session_${user.id}`} user={{ role: user.role }} />
       )}
     </>

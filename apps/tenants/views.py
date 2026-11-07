@@ -27,7 +27,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Fields worth recording on an Organization UPDATE — matches
+# Fields worth recording on an Organization UPDATE - matches
 # OrganizationUpdateSerializer.Meta.fields exactly.
 _ORG_TRACKED_FIELDS = ['name', 'is_active', 'org_type', 'latitude', 'longitude']
 _OWN_ORG_TRACKED_FIELDS = ['name', 'contact_email', 'contact_phone', 'address', 'latitude', 'longitude']
@@ -38,10 +38,8 @@ ORG_STAFF_ROLES = ('MSP_ADMIN', 'MSP_USER', 'STP_ADMIN', 'STP_USER')
 
 def _rating_summary(org_ids):
     """{org_id: {'rating_avg': 4.3, 'rating_count': 12}} for the public pages."""
-    from django.db.models import Avg
-    from apps.bookings.models import Review
-    rows = Review.objects.filter(organization_id__in=org_ids).values('organization_id').annotate(avg=Avg('rating'), n=Count('id'))
-    return {r['organization_id']: {'rating_avg': round(r['avg'], 1), 'rating_count': r['n']} for r in rows}
+    from apps.bookings.public_stays import _rating_summary as summary
+    return summary(org_ids)
 
 
 def _redis_reachable():
@@ -67,6 +65,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         'destroy': 'organizations.manage', 'upload_logo': 'organizations.manage', 'toggle_status': 'organizations.manage',
         'bulk_activate': 'organizations.manage', 'bulk_deactivate': 'organizations.manage',
         'impersonate': 'organizations.impersonate', 'platform_status': 'platform.view',
+        'overview': 'organizations.view',
     }
     STP_READ_ACTIONS = {'list', 'retrieve', 'users', 'stats', 'statistics'}
     OPEN_ACTIONS = {'public_info', 'public_list', 'mine', 'mine_logo', 'mine_cover', 'mine_email', 'mine_email_test'}  # checked inside
@@ -86,7 +85,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         # public_info/public_list are the deliberately anonymous-accessible
-        # actions — a customer visiting the shared booking page has no
+        # actions - a customer visiting the shared booking page has no
         # account yet, so they can't require IsAuthenticated like every
         # other action here.
         if self.action in ('public_info', 'public_list'):
@@ -149,7 +148,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
  
     @action(detail=True, methods=['get'], url_path='public_info')
     def public_info(self, request, pk=None):
-        """Anonymous-accessible — see get_permissions(). Deliberately does
+        """Anonymous-accessible - see get_permissions(). Deliberately does
         NOT use get_object()/get_queryset(): those scope by the requesting
         user's own visible orgs, which doesn't apply to an anonymous
         visitor at all. Returns only {id, name, org_type}, and only for an
@@ -180,51 +179,24 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='public_list')
     def public_list(self, request):
-        """Anonymous-accessible — backs the shared /book landing page,
-        where a visitor picks which business they're booking with instead
-        of needing an org-specific link/ID. Same field allowlist as
-        public_info, same ROOM_BOOKING-STP-active filter — a visitor here
-        never sees anything beyond {id, name, org_type} for organizations
-        that are actually open for booking."""
-        from django.db.models import Min
-        from apps.bookings.models import BookingSettings, Room, RoomImage
-        orgs = list(Organization.objects.filter(
-            tenant_type='STP', org_type='ROOM_BOOKING', is_active=True,
-        ).order_by('name'))
-        ids = [o.id for o in orgs]
-        active_rooms = Room.objects.filter(organization_id__in=ids, is_active=True)
-        room_stats = {
-            r['organization_id']: r
-            for r in active_rooms.values('organization_id').annotate(n=Count('id'), min_price=Min('price_per_night'))
-        }
-        # One cover photo per org: a primary room image if there is one.
-        covers = {}
-        for img in RoomImage.objects.filter(room__in=active_rooms).select_related('room').order_by('-is_primary', 'order', 'id'):
-            covers.setdefault(img.room.organization_id, img)
-        accepting = dict(BookingSettings.objects.filter(organization_id__in=ids).values_list('organization_id', 'accepting_bookings'))
-        ratings = _rating_summary(ids)
+        """Anonymous-accessible - backs the shared /book site (landing page
+        and stay search). Lists active ROOM_BOOKING STP orgs that have at
+        least one bookable room, with only public-facing details.
 
-        def url(f):
-            return request.build_absolute_uri(f.url) if f else None
-
-        return Response([
-            {
-                'id': o.id, 'name': o.name, 'org_type': o.org_type,
-                'logo': url(o.logo),
-                'address': o.address,
-                'cover_image': url(o.cover_image) or (url(covers[o.id].image) if o.id in covers else None),
-                'room_count': room_stats.get(o.id, {}).get('n', 0),
-                'min_price': room_stats.get(o.id, {}).get('min_price'),
-                'accepting_bookings': accepting.get(o.id, True),
-                **ratings.get(o.id, {'rating_avg': None, 'rating_count': 0}),
-            }
-            for o in orgs
-            if o.id in room_stats  # a property with no bookable rooms isn't worth listing yet
-        ])
+        Optional ?check_in=&check_out= adds `available_rooms` (rooms free
+        for that stay) and ?guests= only counts rooms big enough."""
+        from apps.bookings.public_stays import public_stays
+        from apps.bookings.views import _requested_stay
+        check_in, check_out = _requested_stay(request)
+        guests = request.query_params.get('guests')
+        return Response(public_stays(
+            request.build_absolute_uri, check_in, check_out,
+            int(guests) if guests and guests.isdigit() else None,
+        ))
 
     @action(detail=False, methods=['get', 'patch'], url_path='mine')
     def mine(self, request):
-        """The requesting user's own organization — any MSP/STP staff can
+        """The requesting user's own organization - any MSP/STP staff can
         read it, only that org's admin can edit it."""
         user = request.user
         org = user.organization
@@ -303,7 +275,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'], url_path='mine/email/test')
     def mine_email_test(self, request):
-        """Send a test email to the requester using the saved settings — no
+        """Send a test email to the requester using the saved settings - no
         fallback, so a broken account shows up here rather than in production."""
         from apps.core.email import build_org_message
         from .models import OrgEmailSettings
@@ -323,9 +295,78 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         cfg.last_test_at, cfg.last_test_ok, cfg.last_test_error = timezone.now(), ok, error
         cfg.save(update_fields=['last_test_at', 'last_test_ok', 'last_test_error', 'updated_at'])
         if not ok:
-            return Response({'error': f'Sending failed — {error}', **OrgEmailSettingsSerializer(cfg).data},
+            return Response({'error': f'Sending failed - {error}', **OrgEmailSettingsSerializer(cfg).data},
                             status=status.HTTP_400_BAD_REQUEST)
         return Response({'message': f'Test email sent to {user.email}.', **OrgEmailSettingsSerializer(cfg).data})
+
+    @action(detail=False, methods=['get'], url_path='overview')
+    def overview(self, request):
+        """MSP: how each managed room-booking organization is doing - rooms,
+        tonight's occupancy, this month's bookings and revenue, open requests,
+        last booking, and a simple health flag."""
+        import datetime as dt
+        from decimal import Decimal
+        from zoneinfo import ZoneInfo
+        from django.conf import settings as dj_settings
+        from django.db.models import Max, Q, Sum
+        from apps.bookings.models import Booking, Payment, Room
+
+        tz = ZoneInfo(getattr(dj_settings, 'PROPERTY_TIMEZONE', 'Asia/Kolkata'))
+        now = dt.datetime.now(tz)
+        today = now.date()
+        month_start = dt.datetime.combine(today.replace(day=1), dt.time.min, tzinfo=tz)
+        orgs = list(self.get_queryset().filter(tenant_type='STP'))
+        ids = [o.id for o in orgs]
+        rooms = dict(Room.objects.filter(organization_id__in=ids, is_active=True)
+                     .values('organization_id').annotate(n=Count('id')).values_list('organization_id', 'n'))
+        occupied = dict(Booking.objects.filter(organization_id__in=ids, status__in=['CONFIRMED', 'CHECKED_IN'],
+                                               check_in__lte=today, check_out__gt=today)
+                        .values('organization_id').annotate(n=Count('room_id', distinct=True)).values_list('organization_id', 'n'))
+        stats = {r['organization_id']: r for r in Booking.objects.filter(organization_id__in=ids).values('organization_id').annotate(
+            month=Count('id', filter=Q(created_at__gte=month_start)),
+            pending=Count('id', filter=Q(status='PENDING', payment_method='AT_PROPERTY')),
+            cancel_requests=Count('id', filter=Q(cancel_request_status='PENDING')),
+            last=Max('created_at'))}
+        revenue = dict(Payment.objects.filter(booking__organization_id__in=ids, status='PAID', paid_at__gte=month_start)
+                       .values('booking__organization_id').annotate(s=Sum('amount')).values_list('booking__organization_id', 's'))
+        users = dict(User.objects.filter(organization_id__in=ids, is_active=True)
+                     .values('organization_id').annotate(n=Count('id')).values_list('organization_id', 'n'))
+        rows = []
+        for o in orgs:
+            st = stats.get(o.id, {})
+            n_rooms = rooms.get(o.id, 0)
+            last = st.get('last')
+            if not o.is_active:
+                health = 'inactive'
+            elif not n_rooms:
+                health = 'setup'
+            elif not last or last < now - dt.timedelta(days=30):
+                health = 'quiet'
+            elif st.get('cancel_requests') or st.get('pending'):
+                health = 'attention'
+            else:
+                health = 'good'
+            rows.append({
+                'id': o.id, 'name': o.name, 'is_active': o.is_active, 'org_type': o.org_type,
+                'logo': request.build_absolute_uri(o.logo.url) if o.logo else None,
+                'rooms': n_rooms, 'occupied_tonight': occupied.get(o.id, 0),
+                'occupancy': round(occupied.get(o.id, 0) * 100 / n_rooms) if n_rooms else 0,
+                'bookings_month': st.get('month', 0), 'revenue_month': str(revenue.get(o.id) or Decimal('0')),
+                'pending': st.get('pending', 0), 'cancel_requests': st.get('cancel_requests', 0),
+                'last_booking': last.isoformat() if last else None, 'users': users.get(o.id, 0), 'health': health,
+            })
+        total_rooms = sum(rooms.values())
+        return Response({
+            'totals': {
+                'organizations': len(orgs), 'active': sum(1 for o in orgs if o.is_active), 'rooms': total_rooms,
+                'occupied_tonight': sum(occupied.values()),
+                'occupancy': round(sum(occupied.values()) * 100 / total_rooms) if total_rooms else 0,
+                'bookings_month': sum(r['bookings_month'] for r in rows),
+                'revenue_month': str(sum((Decimal(r['revenue_month']) for r in rows), Decimal('0'))),
+                'needs_attention': sum(1 for r in rows if r['health'] in ('attention', 'setup', 'quiet')),
+            },
+            'organizations': sorted(rows, key=lambda r: -Decimal(r['revenue_month'])),
+        })
 
     @action(detail=False, methods=['get'], url_path='platform_status')
     def platform_status(self, request):

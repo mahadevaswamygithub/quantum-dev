@@ -21,12 +21,12 @@ from ..serializers import (
     MeUpdateSerializer,
 )
 # Not re-exported via ..serializers (it's a private helper, not a serializer)
-# — same MSP/STP role-vs-org-type guard used by UserCreateSerializer /
+# - same MSP/STP role-vs-org-type guard used by UserCreateSerializer /
 # UserUpdateSerializer, reused here since these two actions bypass those
 # serializers entirely and would otherwise skip the check.
 from ..serializers.users import _check_role_matches_org_type, _resolve_access_role, invite_pending, send_invite_email
 
-# Fields worth recording on a User UPDATE — matches UserUpdateSerializer.Meta.fields.
+# Fields worth recording on a User UPDATE - matches UserUpdateSerializer.Meta.fields.
 _USER_TRACKED_FIELDS = [
     'first_name', 'last_name', 'email', 'role',
     'phone', 'date_of_birth', 'address', 'employee_id',
@@ -36,7 +36,7 @@ _USER_TRACKED_FIELDS = [
 
 # Roles that only ever see/act on their own account through this viewset,
 # and the only actions they may use. Everything else (update, role changes,
-# activation, deletes, bulk ops, exports) is staff-only — otherwise an
+# activation, deletes, bulk ops, exports) is staff-only - otherwise an
 # employee could PUT their own record with role=STP_ADMIN.
 SELF_SERVICE_ROLES = ('EMPLOYEE', 'CUSTOMER')
 SELF_SERVICE_ACTIONS = {'list', 'retrieve', 'me', 'upload_picture', 'documents', 'delete_document'}
@@ -73,7 +73,7 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         if user.role in SELF_SERVICE_ROLES:
             return qs.filter(id=user.id)
         # Guest (CUSTOMER) accounts are platform-wide and never managed by a
-        # property's staff — staff see guests only via their own bookings.
+        # property's staff - staff see guests only via their own bookings.
         qs = qs.exclude(role='CUSTOMER')
         if user.role in ('MSP_ADMIN', 'MSP_USER', 'STP_ADMIN', 'STP_USER'):
             return self.get_organization_scoped_queryset(qs)
@@ -102,7 +102,7 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
     def perform_update(self, serializer):
         instance = serializer.instance
         # Self-profile edits (the `me` action) go through this same
-        # serializer but not this hook — `me` calls serializer.save()
+        # serializer but not this hook - `me` calls serializer.save()
         # directly rather than routing through the viewset's update(), so
         # it's intentionally not logged here to avoid noise from routine
         # profile edits.
@@ -296,7 +296,7 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         if request.user.role not in ADMIN_TIERS and role in ADMIN_TIERS:
             raise PermissionDenied('Only an admin can make someone an admin.')
         # Selected users can belong to different orgs, so the role/org-type
-        # guard has to run per-user rather than once for the whole batch —
+        # guard has to run per-user rather than once for the whole batch -
         # reject the whole request if any single one would end up mismatched.
         users = list(self.get_queryset().filter(id__in=ids).select_related('organization'))
         self._guard_admin_target(*users)

@@ -1,26 +1,29 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, BedDouble, Clock, Star, FileText, Loader2, MapPin, Phone, SearchX } from 'lucide-react';
+import { BadgeCheck, BedDouble, ChevronRight, Clock, CreditCard, Star, FileText, Loader2, MapPin, Phone, SearchX, Zap } from 'lucide-react';
 import GuestLayout from '../../components/guest/GuestLayout';
 import StaySearch from '../../components/guest/StaySearch';
 import RoomCard from '../../components/guest/RoomCard';
 import { useOrgInfo } from '../../hooks/useOrgInfo';
 import Stars from '../../components/common/Stars';
 import { bookingAPI } from '../../services/api';
-import { cancellationRule, formatDate, formatTime, nightsBetween, primaryImage, useGuest, useStaySearch } from '../../components/guest/guestUtils';
+import { cancellationRule, formatDate, formatTime, nightsBetween, primaryImage, useStaySearch } from '../../components/guest/guestUtils';
+import { CONTAINER, EYEBROW } from '../../components/guest/site';
+import TechBackdrop from '../../components/guest/TechBackdrop';
+import { HeartButton } from '../../components/guest/wishlist';
 
 const NotFound = () => (
   <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-6 text-center bg-slate-50 dark:bg-slate-900">
     <BedDouble className="w-10 h-10 text-slate-300" />
     <p className="text-lg font-semibold text-slate-900 dark:text-white">This booking site isn't available</p>
     <p className="text-sm text-slate-500 dark:text-slate-400">The link may be wrong, or the property isn't taking bookings online.</p>
-    <Link to="/book" className="mt-2 text-sm font-semibold text-green-600 hover:text-green-700">See all properties</Link>
+    <Link to="/book/stays" className="mt-2 text-sm font-semibold text-brand-700 hover:underline">See all stays</Link>
   </div>
 );
 
 const InfoTile = ({ icon: Icon, title, children }) => (
   <div className="flex gap-3 p-5 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-    <span className="w-10 h-10 rounded-xl bg-green-50 dark:bg-green-500/10 text-green-600 dark:text-green-400 flex items-center justify-center flex-shrink-0">
+    <span className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-500/10 text-brand-600 dark:text-brand-400 flex items-center justify-center flex-shrink-0">
       <Icon className="w-5 h-5" />
     </span>
     <div className="min-w-0 text-sm text-slate-600 dark:text-slate-300">
@@ -33,14 +36,13 @@ const InfoTile = ({ icon: Icon, title, children }) => (
 /**
  * A property's public booking site home: hero + stay search, the rooms
  * (with live availability once dates are picked) and practical info.
- * Browsable without an account — sign-in is only asked for at "Reserve".
+ * Browsable without an account - sign-in is only asked for at "Reserve".
  */
 const GuestHome = () => {
   const { orgId, propertyId } = useParams();
   const navigate = useNavigate();
   const { org, loading: orgLoading, notFound } = useOrgInfo(orgId);
   const { checkIn, checkOut, guests, setStay, query } = useStaySearch();
-  const { isGuest } = useGuest();
 
   const [properties, setProperties] = useState([]);
   const [rooms, setRooms] = useState(null);
@@ -86,58 +88,75 @@ const GuestHome = () => {
 
   const propertyLink = (id) => `/book/${orgId}${id ? `/properties/${id}` : ''}${query()}`;
 
+  const perks = org ? [
+    { icon: Zap, text: org.auto_confirm ? 'Instant confirmation' : 'Confirmed by the property' },
+    { icon: BadgeCheck, text: cancellationRule(org.free_cancellation_hours).replace(/\.$/, '') },
+    { icon: CreditCard, text: org.online_payments ? 'Pay online or at the property' : 'Pay at the property' },
+  ] : [];
+
   return (
-    <GuestLayout org={org}>
+    <GuestLayout org={org} overlay>
       {/* Hero */}
-      <section className="relative">
-        <div className="relative h-[300px] sm:h-[360px] overflow-hidden bg-gradient-to-br from-green-700 via-green-600 to-teal-500">
-          {(org?.cover_image || heroImage) && <img src={org?.cover_image || heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/40 to-slate-950/10" />
-          {/* Signed-in guests browse inside their account (no site header), so give them a way back to the list. */}
-          {isGuest && (
-            <Link to="/book" className="absolute top-4 left-4 sm:left-6 lg:left-8 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 hover:bg-white text-sm font-medium text-slate-800 shadow-sm">
-              <ArrowLeft className="w-4 h-4" /> All properties
-            </Link>
-          )}
-          <div className="relative h-full px-4 sm:px-6 lg:px-8 flex flex-col justify-end pb-24 sm:pb-28">
-            {orgLoading ? (
-              <div className="h-10 w-64 rounded bg-white/20 animate-pulse" />
-            ) : (
-              <>
-                <h1 className="text-3xl sm:text-5xl font-bold text-white drop-shadow-sm">{org?.name}</h1>
-                <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-white/90 text-sm sm:text-base">
-                  {org?.rating_count > 0 && (
-                    <a href="#reviews" className="flex items-center gap-1.5 hover:underline">
-                      <Star className="w-4 h-4 fill-amber-400 text-amber-400" /><b className="text-white">{org.rating_avg}</b> · {org.rating_count} review{org.rating_count === 1 ? '' : 's'}
-                    </a>
-                  )}
-                  {org?.address && <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" />{org.address}</span>}
-                </div>
-                {org && !org.accepting_bookings && (
-                  <p className="mt-3 inline-flex w-fit px-3 py-1 rounded-full bg-amber-400 text-amber-950 text-sm font-semibold">
-                    Not taking new bookings right now
-                  </p>
+      <section className="relative min-h-[560px] h-[72vh] max-h-[760px] flex items-end bg-navy-900">
+        {(org?.cover_image || heroImage) && <img src={org?.cover_image || heroImage} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+        <div className="absolute inset-0 bg-gradient-to-b from-navy-950/70 via-navy-950/40 to-navy-950/90" />
+        <TechBackdrop intensity="soft" />
+        <div className={`${CONTAINER} relative pt-28 pb-8`}>
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-sm text-white/70">
+            <Link to="/book" className="hover:text-white">Home</Link><ChevronRight className="w-4 h-4" />
+            <Link to="/book/stays" className="hover:text-white">Stays</Link><ChevronRight className="w-4 h-4" />
+            <span className="text-white font-medium truncate">{org?.name || '…'}</span>
+          </nav>
+          {orgLoading ? (
+            <div className="mt-4 h-12 w-80 max-w-full rounded-lg bg-white/20 animate-pulse" />
+          ) : (
+            <>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
+                <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white drop-shadow">{org?.name}</h1>
+                {org && <HeartButton orgId={org.id} label />}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-white/90 text-sm sm:text-base">
+                {org?.rating_count > 0 && (
+                  <a href="#reviews" className="inline-flex items-center gap-1.5 hover:underline">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-600 text-white text-sm font-bold"><Star className="w-3.5 h-3.5 fill-white" />{org.rating_avg}</span>
+                    {org.rating_count} review{org.rating_count === 1 ? '' : 's'}
+                  </a>
                 )}
-              </>
-            )}
-          </div>
-        </div>
-        <div className="relative px-4 sm:px-6 lg:px-8 -mt-16 sm:-mt-20">
+                {org?.address && <span className="inline-flex items-center gap-1.5"><MapPin className="w-4 h-4 text-green-300" />{org.address}</span>}
+              </div>
+              <ul className="mt-4 flex flex-wrap gap-2">
+                {perks.map(({ icon: Icon, text }) => (
+                  <li key={text} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-white/20 bg-white/10 backdrop-blur text-xs sm:text-sm font-semibold text-white">
+                    <Icon className="w-4 h-4 text-green-300" />{text}
+                  </li>
+                ))}
+              </ul>
+              {org && !org.accepting_bookings && (
+                <p className="mt-3 inline-flex w-fit px-3 py-1 rounded-full bg-amber-400 text-amber-950 text-sm font-semibold">
+                  Not taking new bookings right now
+                </p>
+              )}
+            </>
+          )}
           <StaySearch
+            variant="glass"
             checkIn={checkIn}
             checkOut={checkOut}
             guests={guests}
-            onSearch={(s) => setStay(s)}
+            onSearch={(st) => setStay(st)}
+            submitLabel="Check availability"
+            className="mt-6"
           />
         </div>
       </section>
 
       {/* Rooms */}
-      <section className="px-4 sm:px-6 lg:px-8 mt-10">
+      <section className={`${CONTAINER} mt-12`}>
         <div className="flex flex-wrap items-end justify-between gap-3 mb-5">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {activeProperty ? activeProperty.name : 'Rooms'}
+            <p className={EYEBROW}>Choose your room</p>
+            <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+              {activeProperty ? activeProperty.name : 'Rooms & Suites'}
             </h2>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {checkIn && checkOut
@@ -159,7 +178,7 @@ const GuestHome = () => {
                   onClick={() => navigate(propertyLink(p.id))}
                   className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium border transition-colors ${
                     active
-                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white'
+                      ? 'bg-brand-500 text-white border-brand-500'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-slate-400'
                   }`}
                 >
@@ -171,7 +190,7 @@ const GuestHome = () => {
         )}
 
         {!rooms ? (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[0, 1, 2].map(i => <div key={i} className="h-80 rounded-2xl bg-slate-200 dark:bg-slate-800 animate-pulse" />)}
           </div>
         ) : sortedRooms.length === 0 ? (
@@ -181,7 +200,7 @@ const GuestHome = () => {
             <p className="text-sm text-slate-500 dark:text-slate-400">Try fewer guests{properties.length > 1 ? ' or another building' : ''}.</p>
           </div>
         ) : (
-          <div className={`grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${loadingRooms ? 'opacity-60' : ''}`}>
+          <div className={`grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${loadingRooms ? 'opacity-60' : ''}`}>
             {sortedRooms.map(room => (
               <RoomCard key={room.id} room={room} checkIn={checkIn} checkOut={checkOut} to={`/book/${orgId}/rooms/${room.id}${query()}`} />
             ))}
@@ -191,8 +210,9 @@ const GuestHome = () => {
 
       {/* Reviews */}
       {reviews.length > 0 && (
-        <section id="reviews" className="px-4 sm:px-6 lg:px-8 mt-14 scroll-mt-24">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+        <section id="reviews" className={`${CONTAINER} mt-16 scroll-mt-24`}>
+          <p className={EYEBROW}>What guests say</p>
+          <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
             <Star className="w-6 h-6 fill-amber-400 text-amber-400" /> {org?.rating_avg} · {org?.rating_count} review{org?.rating_count === 1 ? '' : 's'}
           </h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -205,7 +225,7 @@ const GuestHome = () => {
                 <Stars value={r.rating} size="w-3.5 h-3.5" />
                 {r.comment && <p className="mt-2 text-sm text-slate-700 dark:text-slate-200 whitespace-pre-line">{r.comment}</p>}
                 {r.reply && (
-                  <p className="mt-3 pl-3 border-l-2 border-green-500 text-sm text-slate-600 dark:text-slate-300">
+                  <p className="mt-3 pl-3 border-l-2 border-brand-500 text-sm text-slate-600 dark:text-slate-300">
                     <b className="text-slate-900 dark:text-white">Response from {org?.name}:</b> {r.reply}
                   </p>
                 )}
@@ -217,8 +237,9 @@ const GuestHome = () => {
 
       {/* Good to know */}
       {org && (
-        <section className="px-4 sm:px-6 lg:px-8 mt-14">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-5">Good to know</h2>
+        <section className={`${CONTAINER} mt-16`}>
+          <p className={EYEBROW}>Before you go</p>
+          <h2 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mb-6">Good to Know</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <InfoTile icon={Clock} title="Check-in & check-out">
               <p>Check-in from {formatTime(org.check_in_time)}</p>

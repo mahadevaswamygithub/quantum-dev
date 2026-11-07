@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  Building2, Users, Home, Settings, ChevronLeft, ChevronRightIcon, Briefcase, DollarSign, Clock, CalendarDays, Shield, UserCircle, History, BedDouble, CalendarCheck, Wallet, Star,
+  Building2, Users, Home, Settings, ChevronLeft, ChevronRightIcon, Briefcase, DollarSign, Clock, CalendarDays, Shield, UserCircle, History, BedDouble, CalendarCheck, CalendarRange, Wallet, Star,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,7 @@ const formatRole = (role = '') =>
 const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  // Pulled from context rather than threaded in as a prop — Sidebar is
+  // Pulled from context rather than threaded in as a prop - Sidebar is
   // only ever rendered inside an authenticated page (already inside
   // AuthProvider), so this avoids touching every call site just to pass
   // one more field needed solely for vertical-specific nav visibility.
@@ -101,12 +101,13 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
           <NavItem to={`${basePath}/activity`} icon={History} label="Activity Log" />
         )}
 
-        {/* Room Booking vertical — STP staff of a ROOM_BOOKING org only */}
+        {/* Room Booking vertical - STP staff of a ROOM_BOOKING org only */}
         {isSTP && isRoomBookingOrg && (
           <>
             {can('rooms.view') && <NavItem to={`${basePath}/properties`} icon={Building2} label="Properties" />}
             {can('rooms.view') && <NavItem to={`${basePath}/rooms`} icon={BedDouble} label="Rooms" />}
             {can('bookings.view') && <NavItem to={`${basePath}/bookings`} icon={CalendarCheck} label="Bookings" />}
+            {can('bookings.view') && <NavItem to={`${basePath}/calendar`} icon={CalendarRange} label="Room calendar" />}
             {can('guests.view') && <NavItem to={`${basePath}/guests`} icon={UserCircle} label="Guests" />}
             {can('payments.report') && <NavItem to={`${basePath}/collections`} icon={Wallet} label="Collections" />}
             {can('reviews.view') && <NavItem to={`${basePath}/reviews`} icon={Star} label="Reviews" />}
@@ -124,7 +125,7 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
           </>
         )}
 
-        {/* Settings — organization-level; only roles with something to manage */}
+        {/* Settings - organization-level; only roles with something to manage */}
         {(isOrgAdmin || canAny('settings.manage', 'platform.view', 'users.view') || (isSTP && isRoomBookingOrg && can('bookings.view'))) && (
           <NavItem to={`${basePath}/settings`} icon={Settings} label="Settings" />
         )}

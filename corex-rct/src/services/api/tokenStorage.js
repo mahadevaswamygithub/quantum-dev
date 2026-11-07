@@ -44,7 +44,7 @@ export const tokenStorage = {
 
   /**
    * Clears only THIS tab's active session. Deliberately does not touch the
-   * other storage — an impersonated tab (sessionStorage) exiting must never
+   * other storage - an impersonated tab (sessionStorage) exiting must never
    * wipe the normal session (localStorage) that other tabs of this origin
    * are still reading, and vice versa.
    */

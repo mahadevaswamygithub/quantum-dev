@@ -2,27 +2,44 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { tokenStorage } from '../services/api/tokenStorage';
 
 /**
  * Bootstrap route for `/impersonate/:code`, opened in a fresh browser tab
  * by the "Impersonate" action on an STP organization. Exchanges the
- * one-time code for real JWTs (scoped to sessionStorage — see
+ * one-time code for real JWTs (scoped to sessionStorage - see
  * AuthContext.loginWithImpersonationCode / services/api/tokenStorage.js)
  * and lands on that user's normal portal route.
  */
+// The code is single-use, but React (StrictMode in development) can run the
+// effect twice - share one exchange per code so the second run doesn't burn it.
+const exchanges = new Map();
+
 const ImpersonateSession = () => {
   const { code } = useParams();
   const navigate = useNavigate();
-  const { loginWithImpersonationCode, getPortalRoute } = useAuth();
+  const { loginWithImpersonationCode, getPortalRoute, isImpersonating } = useAuth();
   const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
+    const doneKey = `impersonation-code:${code}`;
+    let alreadyUsedHere = false;
+    try { alreadyUsedHere = sessionStorage.getItem(doneKey) === '1'; } catch { /* storage unavailable */ }
+    // Reloading this tab after the code was used: the session is already here.
+    if (alreadyUsedHere && isImpersonating) {
+      let stored = null;
+      try { stored = JSON.parse(tokenStorage.get('user') || 'null'); } catch { /* ignore */ }
+      navigate(getPortalRoute(stored || undefined), { replace: true });
+      return undefined;
+    }
+    if (!exchanges.has(code)) exchanges.set(code, loginWithImpersonationCode(code));
     (async () => {
-      const result = await loginWithImpersonationCode(code);
+      const result = await exchanges.get(code);
       if (cancelled) return;
       if (result.success) {
-        navigate(getPortalRoute(), { replace: true });
+        try { sessionStorage.setItem(doneKey, '1'); } catch { /* storage unavailable */ }
+        navigate(getPortalRoute(result.user), { replace: true });
       } else {
         setError(result.error);
       }

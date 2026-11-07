@@ -35,7 +35,7 @@ class OrgRoleSerializer(serializers.ModelSerializer):
         unknown = [p for p in value if p not in allowed]
         if unknown:
             raise serializers.ValidationError(f"Not available for this organization: {', '.join(unknown)}")
-        # "Manage" implies "view" for the same area — keep the stored list consistent.
+        # "Manage" implies "view" for the same area - keep the stored list consistent.
         implied = {'bookings.manage': 'bookings.view', 'rooms.manage': 'rooms.view', 'users.manage': 'users.view',
                    'organizations.manage': 'organizations.view', 'payments.refund': 'bookings.view'}
         out = set(value)
@@ -52,7 +52,7 @@ class OrgRoleViewSet(viewsets.ModelViewSet):
     pagination_class = None
 
     def _org(self):
-        """The requester's own organization, or — for reading only — one they
+        """The requester's own organization, or - for reading only - one they
         can see (?organization=<id>), so an MSP adding a user to a client org
         can pick from that org's roles."""
         own = getattr(self.request.user, 'organization', None)

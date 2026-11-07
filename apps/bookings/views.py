@@ -42,7 +42,7 @@ def _staff_can(user, perm):
 
 
 class CustomerRegisterView(APIView):
-    """Self-service sign-up for one org's booking site — AllowAny, since
+    """Self-service sign-up for one org's booking site - AllowAny, since
     the visitor has no account yet. Logs the new customer straight in
     (same token shape as LoginView) rather than making them sign up then
     separately log in."""
@@ -157,7 +157,7 @@ class GuestListView(APIView):
     """Settings-free "Guests" page for a property's staff: everyone who has
     booked *with this property*, with contact details from their bookings
     here and their stay counts here. Guest accounts themselves belong to the
-    platform — staff can't see or edit them, nor a guest's stays elsewhere."""
+    platform - staff can't see or edit them, nor a guest's stays elsewhere."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -392,8 +392,8 @@ class RazorpayWebhookView(APIView):
 
 class RoomBookingStaffMixin:
     """Shared by every viewset in this file that staff manage (Property,
-    Room) — staff can only manage records for their own org, and only if
-    that org is actually a ROOM_BOOKING org (defense in depth — the STP
+    Room) - staff can only manage records for their own org, and only if
+    that org is actually a ROOM_BOOKING org (defense in depth - the STP
     portal's own nav/routes already gate on this, but the API must not
     rely on the frontend alone)."""
 
@@ -455,7 +455,7 @@ class RoomViewSet(RoomBookingStaffMixin, OrganizationScopedQuerysetMixin, viewse
             qs = self.get_organization_scoped_queryset(qs).filter(is_active=True)
         else:
             return qs.none()
-        # Powers the customer's "rooms in this building" page — staff can
+        # Powers the customer's "rooms in this building" page - staff can
         # use it too (e.g. a Rooms-page building filter).
         property_id = self.request.query_params.get('property')
         if property_id:
@@ -475,7 +475,7 @@ class RoomViewSet(RoomBookingStaffMixin, OrganizationScopedQuerysetMixin, viewse
     def perform_update(self, serializer):
         # get_queryset() already scopes a CUSTOMER to their own org's
         # active rooms, so without this check they could PATCH a room they
-        # can merely *view* — DRF's UpdateModelMixin doesn't gate HTTP verbs
+        # can merely *view* - DRF's UpdateModelMixin doesn't gate HTTP verbs
         # by role on its own, only get_queryset/get_object do, and that's
         # visibility scoping, not a write permission.
         if not self._staff_org_or_403():
@@ -520,7 +520,7 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
     serializer_class = BookingSerializer
     permission_classes = [IsAuthenticated]
     organization_lookup = 'organization'
-    http_method_names = ['get', 'post', 'head', 'options']  # no PUT/PATCH/DELETE — status changes go through the actions below
+    http_method_names = ['get', 'post', 'head', 'options']  # no PUT/PATCH/DELETE - status changes go through the actions below
 
     def get_serializer_context(self):
         return {**super().get_serializer_context(), 'request': self.request}
@@ -598,13 +598,13 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='history')
     def history(self, request, pk=None):
         """
-        Full timeline for this one booking — every ActivityLog row written
+        Full timeline for this one booking - every ActivityLog row written
         against it by log_activity() (made, paid/confirmed, checked in,
         checked out, cancelled, refunded...), oldest first. get_object()
         already scopes visibility the same as the rest of this viewset
         (customer sees only their own booking, staff only their org's), so
         unlike the admin-only ActivityLogViewSet, the booking's own
-        customer can read this too — it's their history, not an audit feed.
+        customer can read this too - it's their history, not an audit feed.
         """
         booking = self.get_object()
         logs = ActivityLog.objects.filter(model_name='Booking', object_id=str(booking.id)).order_by('created_at')
@@ -717,6 +717,77 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         log_activity(request, 'UPDATE', obj=booking, organization=booking.organization, changes={'status': [old_status, 'CANCELLED']})
         return Response(BookingSerializer(booking, context=self.get_serializer_context()).data)
 
+    @action(detail=True, methods=['post'], url_path='request_cancellation')
+    def request_cancellation(self, request, pk=None):
+        """Guest, after the free-cancellation window: ask the property to cancel."""
+        booking = self.get_object()
+        if not (request.user.role == 'CUSTOMER' and booking.customer_id == request.user.id):
+            return Response({'error': 'Not your reservation.'}, status=status.HTTP_403_FORBIDDEN)
+        if booking.status not in ('PENDING', 'CONFIRMED'):
+            return Response({'error': f'Cannot cancel a {booking.get_status_display().lower()} reservation.'}, status=status.HTTP_400_BAD_REQUEST)
+        if services.guest_can_cancel(booking):
+            return Response({'error': 'You can still cancel this booking for free - use Cancel booking.'}, status=status.HTTP_400_BAD_REQUEST)
+        if booking.cancel_request_status == 'PENDING':
+            return Response({'error': 'You already asked to cancel - the property will reply soon.'}, status=status.HTTP_400_BAD_REQUEST)
+        reason = (request.data.get('reason') or '').strip()
+        if len(reason) < 5:
+            return Response({'reason': ['Tell the property briefly why you need to cancel.']}, status=status.HTTP_400_BAD_REQUEST)
+        booking.cancel_request_status = 'PENDING'
+        booking.cancel_request_reason = reason[:1000]
+        booking.cancel_requested_at = timezone.now()
+        booking.cancel_request_reply = ''
+        booking.save(update_fields=['cancel_request_status', 'cancel_request_reason', 'cancel_requested_at', 'cancel_request_reply', 'updated_at'])
+        notifications.notify(booking, 'cancel_requested')
+        notifications.notify_property_of_cancel_request(booking)
+        log_activity(request, 'UPDATE', obj=booking, organization=booking.organization,
+                     changes={'cancel_request': ['', 'PENDING']})
+        return Response(BookingSerializer(self._fresh(booking), context=self.get_serializer_context()).data)
+
+    @action(detail=True, methods=['post'], url_path='cancel_request_decision')
+    def cancel_request_decision(self, request, pk=None):
+        """Staff: {"decision": "approve"|"decline", "note": "...", "refund": bool}."""
+        booking = self.get_object()
+        if not self._staff_for(booking):
+            return Response({'error': 'Staff only.'}, status=status.HTTP_403_FORBIDDEN)
+        if booking.cancel_request_status != 'PENDING':
+            return Response({'error': 'There is no open cancellation request for this booking.'}, status=status.HTTP_400_BAD_REQUEST)
+        decision = request.data.get('decision')
+        note = (request.data.get('note') or '').strip()[:1000]
+        if decision not in ('approve', 'decline'):
+            return Response({'decision': ['Choose approve or decline.']}, status=status.HTTP_400_BAD_REQUEST)
+        if decision == 'decline':
+            booking.cancel_request_status = 'DECLINED'
+            booking.cancel_request_reply = note
+            booking.save(update_fields=['cancel_request_status', 'cancel_request_reply', 'updated_at'])
+            notifications.notify(booking, 'cancel_declined')
+            log_activity(request, 'UPDATE', obj=booking, organization=booking.organization, changes={'cancel_request': ['PENDING', 'DECLINED']})
+            return Response(BookingSerializer(self._fresh(booking), context=self.get_serializer_context()).data)
+
+        if booking.status not in ('PENDING', 'CONFIRMED'):
+            return Response({'error': f'Cannot cancel a {booking.get_status_display().lower()} reservation.'}, status=status.HTTP_400_BAD_REQUEST)
+        refunded = False
+        if request.data.get('refund') in (True, 'true', '1', 1):
+            if not self._staff_for(booking, 'payments.refund'):
+                return Response({'error': 'Your role doesn’t allow refunds - approve without a refund or ask a manager.'}, status=status.HTTP_403_FORBIDDEN)
+            paid = booking.payments.filter(status='PAID').order_by('-created_at').first()
+            if paid:
+                try:
+                    services.refund_payment(paid)
+                    refunded = True
+                except services.RefundFailed as exc:
+                    return Response({'error': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        old_status = booking.status
+        booking.status = 'CANCELLED'
+        booking.cancel_reason = 'REFUNDED' if refunded else 'REQUESTED'
+        booking.cancelled_at = timezone.now()
+        booking.cancel_request_status = 'APPROVED'
+        booking.cancel_request_reply = note
+        booking.save(update_fields=['status', 'cancel_reason', 'cancelled_at', 'cancel_request_status', 'cancel_request_reply', 'updated_at'])
+        notifications.notify(booking, 'cancelled')
+        log_activity(request, 'UPDATE', obj=booking, organization=booking.organization,
+                     changes={'status': [old_status, 'CANCELLED'], 'cancel_request': ['PENDING', 'APPROVED']})
+        return Response(BookingSerializer(self._fresh(booking), context=self.get_serializer_context()).data)
+
     def _staff_transition(self, request, pk, from_statuses, to_status):
         booking = self.get_object()
         if not self._staff_for(booking):
@@ -754,7 +825,7 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'], url_path='voucher')
     def voucher(self, request, pk=None):
-        """Booking confirmation PDF — the guest's own booking, or any booking
+        """Booking confirmation PDF - the guest's own booking, or any booking
         staff can see (get_object() applies the same visibility rules)."""
         from django.http import HttpResponse
         from .voucher import booking_reference, build_voucher_pdf
@@ -785,7 +856,7 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], url_path='review')
     def review(self, request, pk=None):
-        """The guest rates a completed stay — once."""
+        """The guest rates a completed stay - once."""
         booking = self.get_object()
         if request.user.role != 'CUSTOMER' or booking.customer_id != request.user.id:
             return Response({'error': 'Only the guest who stayed can review it.'}, status=status.HTTP_403_FORBIDDEN)
@@ -822,3 +893,28 @@ class BookingViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
         notifications.notify(booking, 'cancelled')
         log_activity(request, 'UPDATE', obj=booking, organization=booking.organization, changes={'status': [old_status, 'CANCELLED'], 'payment': ['PAID', 'REFUNDED']})
         return Response(BookingSerializer(self._fresh(booking), context=self.get_serializer_context()).data)
+
+
+class GuestAssistantView(APIView):
+    """POST /api/bookings/assistant/ - the booking-site chat helper.
+
+    Open to everyone (logged-out visitors included); a logged-in guest also
+    gets answers about their own bookings. Body:
+    {"message": "...", "context": {"org_id", "check_in", "check_out", "guests"},
+     "history": [{"role": "user"|"assistant", "content": "..."}]}"""
+    permission_classes = [AllowAny]
+    throttle_scope = 'assistant'
+
+    def get_throttles(self):
+        from rest_framework.throttling import ScopedRateThrottle
+        return [ScopedRateThrottle()]
+
+    def post(self, request):
+        from .assistant import GuestAssistant
+        message = request.data.get('message')
+        if not isinstance(message, str) or not message.strip():
+            return Response({'error': 'Type a message.'}, status=status.HTTP_400_BAD_REQUEST)
+        context = request.data.get('context') if isinstance(request.data.get('context'), dict) else {}
+        history = request.data.get('history') if isinstance(request.data.get('history'), list) else []
+        bot = GuestAssistant(request.user, request.build_absolute_uri, context=context, history=history[-10:])
+        return Response(bot.answer(message.strip()[:500]))

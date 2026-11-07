@@ -44,7 +44,7 @@ const GuestStays = ({ customerId }) => {
 };
 
 /**
- * Property staff's guest list — everyone who has booked *with this
+ * Property staff's guest list - everyone who has booked *with this
  * property*, built from its own reservations. Guest accounts belong to the
  * platform: staff can't edit them or see a guest's stays elsewhere.
  */
@@ -128,13 +128,13 @@ const GuestsList = () => {
                             <td className="px-4 py-3">
                               {g.phone
                                 ? <a href={`tel:${g.phone}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1 text-slate-700 dark:text-slate-200 hover:underline"><Phone className="w-3.5 h-3.5" />{g.phone}</a>
-                                : <span className="text-slate-400">—</span>}
+                                : <span className="text-slate-400">-</span>}
                             </td>
                             <td className="px-4 py-3 text-right tabular-nums text-slate-900 dark:text-white">{g.bookings}</td>
                             <td className="px-4 py-3 text-right tabular-nums text-slate-900 dark:text-white">{g.stays}</td>
                             <td className="px-4 py-3 text-right tabular-nums">{g.upcoming ? <Badge tone="green">{g.upcoming}</Badge> : <span className="text-slate-400">0</span>}</td>
                             <td className="px-4 py-3 text-right tabular-nums font-medium text-slate-900 dark:text-white">{formatMoney(g.total_spent)}</td>
-                            <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{g.last_check_in ? formatDate(g.last_check_in) : '—'}</td>
+                            <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{g.last_check_in ? formatDate(g.last_check_in) : '-'}</td>
                           </tr>
                           {isOpen && (
                             <tr className="bg-slate-50/60 dark:bg-slate-800/40">

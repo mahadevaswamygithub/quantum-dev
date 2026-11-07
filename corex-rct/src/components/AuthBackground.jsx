@@ -2,7 +2,7 @@ import React from 'react';
 
 /**
  * Shared page background for the auth-style screens (Login, Register,
- * CustomerLogin, CustomerRegister) — soft, blurred brand-color blobs over
+ * CustomerLogin, CustomerRegister) - soft, blurred brand-color blobs over
  * the existing slate gradient so these screens read as less flat, without
  * needing an actual uploaded image. Purely decorative (pointer-events-none
  * so it never intercepts clicks) and themed for both light and dark.

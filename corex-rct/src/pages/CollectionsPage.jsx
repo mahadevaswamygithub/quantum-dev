@@ -8,6 +8,7 @@ import RefreshButton from '../components/common/RefreshButton';
 import { useAuth } from '../context/AuthContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bookingAPI } from '../services/api';
+import { downloadBlob } from '../utils/downloadFile';
 import { addDaysISO, formatDate, formatMoney, todayISO } from '../components/guest/guestUtils';
 
 const METHOD_META = {
@@ -57,6 +58,14 @@ const CollectionsPage = () => {
     URL.revokeObjectURL(a.href);
   };
 
+  const exportMonth = async () => {
+    try {
+      const from = addDaysISO(day, -29);
+      const { data } = await bookingAPI.exportCollectionsCsv({ from, to: day });
+      downloadBlob(data, `collections-${from}-to-${day}.csv`);
+    } catch { setError('Could not export collections.'); }
+  };
+
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
@@ -78,7 +87,11 @@ const CollectionsPage = () => {
               {day !== todayISO() && <button type="button" onClick={() => setDay(todayISO())} className="px-3 py-2 text-sm font-medium text-green-600 hover:text-green-700">Today</button>}
               <button type="button" onClick={exportCsv} disabled={!report?.count}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-white disabled:opacity-50">
-                <Download className="w-4 h-4" /> Export
+                <Download className="w-4 h-4" /> Export day
+              </button>
+              <button type="button" onClick={exportMonth} title="Payments over the 30 days up to this day"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-white">
+                <Download className="w-4 h-4" /> Export 30 days
               </button>
               <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
             </div>

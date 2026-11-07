@@ -32,4 +32,5 @@ export const tenantAPI = {
   updateMyEmailSettings: (data) => api.patch('/tenants/organizations/mine/email/', data),
   sendTestEmail: () => api.post('/tenants/organizations/mine/email/test/'),
   getPlatformStatus: () => api.get('/tenants/organizations/platform_status/'),
+  getOverview: () => api.get('/tenants/organizations/overview/'),
 };
