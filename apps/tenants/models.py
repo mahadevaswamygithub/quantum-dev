@@ -1,8 +1,40 @@
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
+from django.db.models import Q
 from django_tenants.models import TenantMixin, DomainMixin
 
+
+# Account status, set by the platform owner (apps.tenants.platform_views).
+# Order matters: a property is as restricted as the worse of its own status and
+# its customer's (parent MSP's) status.
+STATUS_ORDER = ('ACTIVE', 'PENDING', 'SUSPENDED', 'CLOSED')
+# Staff of these accounts cannot sign in; their properties are hidden from guests.
+BLOCKED_STATUSES = ('SUSPENDED', 'CLOSED')
+
+
+class OrganizationQuerySet(models.QuerySet):
+    def bookable(self):
+        """Properties guests can see and book: an active ROOM_BOOKING STP whose
+        account, and whose customer (parent MSP) account, are approved and on."""
+        return self.filter(
+            tenant_type='STP', org_type='ROOM_BOOKING', is_active=True, status='ACTIVE',
+        ).filter(
+            Q(parent_organization__isnull=True)
+            | Q(parent_organization__status='ACTIVE', parent_organization__is_active=True)
+        )
+
+    def customers(self):
+        """Top-level accounts (one per customer): MSPs, and standalone STPs."""
+        return self.filter(parent_organization__isnull=True).exclude(schema_name='public')
+
+
 class Organization(TenantMixin):
+    STATUS_CHOICES = [
+        ('PENDING', 'Waiting for approval'),
+        ('ACTIVE', 'Active'),
+        ('SUSPENDED', 'Suspended'),
+        ('CLOSED', 'Closed'),
+    ]
     TENANT_TYPE_CHOICES = [
         ('MSP', 'Multi-Service Provider'),
         ('STP', 'Single Tenant Portal'),
@@ -53,21 +85,69 @@ class Organization(TenantMixin):
     contact_phone = models.CharField(max_length=30, blank=True)
     address = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
+    # Customer account lifecycle (platform owner). Existing organizations are ACTIVE.
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='ACTIVE')
+    status_reason = models.CharField(max_length=300, blank=True)
+    status_changed_at = models.DateTimeField(null=True, blank=True)
+    # True when the customer created this account through public sign-up.
+    signed_up = models.BooleanField(default=False)
+    # Customers (top-level orgs): how many hotels they may have. Null = no limit.
+    # MSP: client organizations; standalone STP: properties (see property_count).
+    property_limit = models.PositiveIntegerField(null=True, blank=True)
     created_on = models.DateTimeField(auto_now_add=True)
     updated_on = models.DateTimeField(auto_now=True)
-    
+
+    objects = OrganizationQuerySet.as_manager()
+
     auto_create_schema = True
     auto_drop_schema = True
-    
+
     class Meta:
         db_table = 'organizations'
         indexes = [
             models.Index(fields=['tenant_type', 'is_active']),
             models.Index(fields=['org_type']),
+            models.Index(fields=['status']),
         ]
-    
+
     def __str__(self):
         return self.name
+
+    @property
+    def customer(self):
+        """The customer account this organization belongs to (itself if top-level)."""
+        return self.parent_organization or self
+
+    @property
+    def effective_status(self):
+        """The more restrictive of this organization's status and its customer's."""
+        statuses = [self.status]
+        if self.parent_organization_id:
+            statuses.append(self.parent_organization.status)
+        return max(statuses, key=STATUS_ORDER.index)
+
+    def sign_in_problem(self):
+        """Why this organization's staff can't sign in, or '' if they can.
+        Pending accounts may sign in (to set up); suspended/closed may not."""
+        status = self.effective_status
+        if status == 'SUSPENDED':
+            return 'Your organization’s account is suspended. Please contact CoreX support.'
+        if status == 'CLOSED':
+            return 'Your organization’s account has been closed.'
+        if not self.is_active or (self.parent_organization_id and not self.parent_organization.is_active):
+            return 'Your organization has been deactivated. Please contact your administrator.'
+        return ''
+
+    def property_count(self):
+        """What the property limit counts. An MSP customer: its client
+        organizations (closed ones excluded). A standalone STP customer: its
+        properties (locations)."""
+        if self.tenant_type == 'MSP':
+            return self.sub_organizations.exclude(status='CLOSED').count()
+        return self.properties.count()
+
+    def property_limit_reached(self):
+        return self.property_limit is not None and self.property_count() >= self.property_limit
 
 
 class Domain(DomainMixin):

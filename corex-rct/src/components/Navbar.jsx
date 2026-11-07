@@ -18,12 +18,14 @@ const Navbar = () => {
   const isSTP = user?.role === 'STP_ADMIN' || user?.role === 'STP_USER';
   // Personal profile is its own page (Settings is organization-level only).
   // Employee keeps its own portal tab.
-  const profileSettingsPath = (isMSP || isSTP) ? '/profile' : '/employee/profile';
+  const isPlatform = user?.role === 'PLATFORM_ADMIN';
+  const profileSettingsPath = (isMSP || isSTP || isPlatform) ? '/profile' : '/employee/profile';
 
-  const orgName = user?.organization_name || 'CoreX Platform';
+  // The platform owner belongs to the internal "Public" organization: show the product name instead.
+  const orgName = (!isPlatform && user?.organization_name) || 'CoreX Platform';
   const orgInitials = orgName
     .split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || 'CX';
-  const portalLabel = isMSP ? 'MSP Portal' : isSTP ? 'STP Portal' : user?.role === 'EMPLOYEE' ? 'Employee Portal' : '';
+  const portalLabel = isPlatform ? 'Platform console' : isMSP ? 'MSP Portal' : isSTP ? 'STP Portal' : user?.role === 'EMPLOYEE' ? 'Employee Portal' : '';
 
   const handleLogout = () => {
     setMenuOpen(false);

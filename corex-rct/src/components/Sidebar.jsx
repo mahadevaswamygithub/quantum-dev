@@ -33,7 +33,8 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
   const isMSP = userRole === 'MSP_ADMIN' || userRole === 'MSP_USER';
   const isSTP = userRole === 'STP_ADMIN' || userRole === 'STP_USER';
   const isEmployee = userRole === 'EMPLOYEE';
-  const basePath = isMSP ? '/msp' : isSTP ? '/stp' : '/employee';
+  const isPlatform = userRole === 'PLATFORM_ADMIN';
+  const basePath = isPlatform ? '/platform' : isMSP ? '/msp' : isSTP ? '/stp' : '/employee';
 
   const Tooltip = ({ label }) => (
     <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
@@ -83,8 +84,10 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
       {/* Nav Items */}
       <div className="flex-1 space-y-1 overflow-y-auto p-2">
 
-        {/* Dashboard */}
-        <NavItem to={basePath} icon={Home} label="Dashboard" />
+        {/* Dashboard (the platform owner's home is the customer list) */}
+        {isPlatform
+          ? <NavItem to={basePath} icon={Building2} label="Customers" />
+          : <NavItem to={basePath} icon={Home} label="Dashboard" />}
 
         {/* MSP: Organizations */}
         {isMSP && can('organizations.view') && (
@@ -92,7 +95,7 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
         )}
 
         {/* Users (MSP + STP) */}
-        {!isEmployee && can('users.view') && (
+        {!isEmployee && !isPlatform && can('users.view') && (
           <NavItem to={`${basePath}/users`} icon={Users} label="Users" />
         )}
 

@@ -154,9 +154,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         visitor at all. Returns only {id, name, org_type}, and only for an
         active ROOM_BOOKING STP org, so this can't be used to probe
         arbitrary org IDs/names/MSP data."""
-        org = Organization.objects.filter(
-            pk=pk, tenant_type='STP', org_type='ROOM_BOOKING', is_active=True,
-        ).first()
+        org = Organization.objects.bookable().filter(pk=pk).first()
         if not org:
             return Response({'error': 'Not found or not accepting bookings.'}, status=status.HTTP_404_NOT_FOUND)
         from apps.bookings.models import BookingSettings

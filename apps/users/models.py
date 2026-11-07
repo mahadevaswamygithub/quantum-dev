@@ -26,6 +26,10 @@ class OrgRole(models.Model):
 
 class User(AbstractUser):
     ROLE_CHOICES = [
+        # The platform owner (CoreX): approves, suspends and limits customer
+        # accounts. Belongs to the "public" organization; created only with
+        # `manage.py create_platform_admin`, never from the staff user forms.
+        ('PLATFORM_ADMIN', 'Platform Admin'),
         ('MSP_ADMIN', 'MSP Admin'),
         ('MSP_USER', 'MSP User'),
         ('STP_ADMIN', 'STP Admin'),

@@ -68,7 +68,7 @@ class CustomerRegisterView(APIView):
 def _public_org_or_404(org_id):
     from django.http import Http404
     from apps.tenants.models import Organization
-    org = Organization.objects.filter(pk=org_id, tenant_type='STP', org_type='ROOM_BOOKING', is_active=True).first()
+    org = Organization.objects.bookable().filter(pk=org_id).first()
     if not org:
         raise Http404('Not found or not accepting bookings.')
     return org
@@ -420,6 +420,11 @@ class PropertyViewSet(RoomBookingStaffMixin, OrganizationScopedQuerysetMixin, vi
         org = self._staff_org_or_403()
         if not org:
             return Response({'error': 'Only Room Booking STP staff can manage properties.'}, status=status.HTTP_403_FORBIDDEN)
+        # A single-business customer's plan limits how many hotels (properties) it has.
+        if not org.parent_organization_id and org.property_limit_reached():
+            n = org.property_limit
+            return Response({'error': f'Your plan allows {n} propert{"ies" if n != 1 else "y"}. Contact CoreX to add more.'},
+                            status=status.HTTP_403_FORBIDDEN)
         serializer = self.get_serializer(data=request.data, context={**self.get_serializer_context(), 'organization': org})
         serializer.is_valid(raise_exception=True)
         prop = serializer.save(organization=org)

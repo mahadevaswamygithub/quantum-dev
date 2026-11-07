@@ -13,3 +13,4 @@ export { leaveAPI } from './leaveApi';
 export { chatAPI } from './chatApi';
 export { activityAPI } from './activityApi';
 export { bookingAPI } from './bookingApi';
+export { platformAPI } from './platformApi';

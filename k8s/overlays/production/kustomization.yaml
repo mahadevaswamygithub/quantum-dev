@@ -37,6 +37,9 @@ configMapGenerator:
       - HTTPS_ENABLED=True
       # Uploads in object storage, so every backend pod sees the same files.
       - USE_S3=True
+      # Hotels sign up at /register and wait for approval in the platform console.
+      - ALLOW_PUBLIC_ORG_SIGNUP=False
+      - SIGNUP_PROPERTY_LIMIT=3
       - SENTRY_ENVIRONMENT=production
       - SENTRY_TRACES_SAMPLE_RATE=0.05
 

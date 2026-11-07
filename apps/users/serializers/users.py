@@ -33,6 +33,10 @@ def _guard_admin_accounts(request, new_role, instance=None):
     """Only admins may create admins, promote to admin, or edit an admin -
     otherwise a staff user with "manage users" could make themselves admin."""
     from apps.core.access import ADMIN_TIERS
+    # The platform owner role exists only through `manage.py create_platform_admin`;
+    # no organization admin may grant it, change it, or edit such an account.
+    if new_role == 'PLATFORM_ADMIN' or (instance is not None and instance.role == 'PLATFORM_ADMIN'):
+        raise serializers.ValidationError({'role': 'This role can’t be assigned here.'})
     me = getattr(request, 'user', None)
     if me is None or me.role in ADMIN_TIERS:
         return
@@ -77,7 +81,8 @@ def send_invite_email(user):
     token = default_token_generator.make_token(user)
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     invite_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
-    org = user.organization.name if user.organization else 'CoreX'
+    # The platform owner belongs to the internal "public" organization: say CoreX.
+    org = user.organization.name if user.organization and user.role != 'PLATFORM_ADMIN' else 'CoreX'
     return send_email(
         f"You're invited to {org} on CoreX",
         f"Hello {user.first_name or ''},\n\n"
@@ -107,6 +112,9 @@ class UserSerializer(serializers.ModelSerializer):
     permissions = serializers.SerializerMethodField()
     invite_pending = serializers.SerializerMethodField()
     two_factor_enabled = serializers.SerializerMethodField()
+    # Customer account status of the user's organization (PENDING shows a
+    # "waiting for approval" notice in the staff portals).
+    account_status = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -115,9 +123,14 @@ class UserSerializer(serializers.ModelSerializer):
             'role', 'access_role', 'permissions', 'invite_pending', 'two_factor_enabled', 'last_login', 'phone', 'date_of_birth', 'address', 'employee_id',
             'profile_picture', 'daily_rate', 'is_active', 'is_auto_generated',
             'organization', 'organization_id', 'organization_name', 'org_type', 'organization_logo',
-            'created_at', 'updated_at',
+            'account_status', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_account_status(self, obj):
+        if obj.role in ('CUSTOMER', 'PLATFORM_ADMIN') or not obj.organization:
+            return None
+        return obj.organization.effective_status
 
     def get_organization_name(self, obj):
         return obj.organization.name if obj.organization else None

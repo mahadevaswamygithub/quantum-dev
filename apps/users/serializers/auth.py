@@ -2,66 +2,45 @@
 from rest_framework import serializers
 from django.conf import settings
 
-from apps.tenants.models import Organization, Domain
 from ..models import User
 
 
-class UserRegistrationSerializer(serializers.ModelSerializer):
-    """Public "create your organization" sign-up (only when
-    settings.ALLOW_PUBLIC_ORG_SIGNUP is on). Creates one Room Booking STP
-    organization with the person signing up as its admin. MSP organizations
-    are never self-created, and no other accounts are made."""
-    tenant_type = serializers.ChoiceField(choices=['STP'], required=False, default='STP')
-    organization_name = serializers.CharField(write_only=True, max_length=100)
-    password = serializers.CharField(write_only=True)
+class UserRegistrationSerializer(serializers.Serializer):
+    """Public "list your hotels on CoreX" sign-up (only when
+    settings.ALLOW_PUBLIC_ORG_SIGNUP is on).
 
-    class Meta:
-        model = User
-        fields = ['username', 'email', 'first_name', 'last_name',
-                  'password', 'organization_name', 'tenant_type']
+    Creates a customer account in PENDING status (set-up allowed, hidden from
+    guests until the platform owner approves it):
+      - account_type STP: a single business; its hotels are Properties.
+      - account_type MSP: a hotel group / management company; each hotel is a
+        client organization with its own manager.
+    No password here: the admin gets an emailed link to set one, which also
+    proves they own the address (apps.tenants.onboarding)."""
+    account_type = serializers.ChoiceField(choices=['STP', 'MSP'], default='STP')
+    organization_name = serializers.CharField(max_length=100)
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    phone = serializers.CharField(max_length=20, required=False, allow_blank=True)
 
-    def validate_email(self, value):
-        if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError('An account with this email already exists.')
+    def validate_organization_name(self, value):
+        value = value.strip()
+        if len(value) < 2:
+            raise serializers.ValidationError('Enter your business name.')
         return value
 
-    def validate(self, data):
-        from apps.core.login_guard import password_problems
-        problems = password_problems(data.get('password'), User(email=data.get('email', ''), username=data.get('username', ''),
-                                                                first_name=data.get('first_name', ''), last_name=data.get('last_name', '')))
-        if problems:
-            raise serializers.ValidationError({'password': problems})
-        return data
+    def validate_email(self, value):
+        value = value.strip().lower()
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError('An account with this email already exists. Sign in instead.')
+        return value
 
     def create(self, validated_data):
-        import re
-        from django.db import transaction
-        from apps.core.email import send_email
-        validated_data.pop('tenant_type', None)
-        organization_name = validated_data.pop('organization_name').strip()
-        password = validated_data.pop('password')
-
-        base = re.sub(r'[^a-z0-9_]', '_', organization_name.lower()).strip('_')[:40] or 'org'
-        if base[0].isdigit():
-            base = f'org_{base}'
-        schema_name, n = base, 1
-        while Organization.objects.filter(schema_name=schema_name).exists():
-            n += 1
-            schema_name = f'{base}{n}'
-
-        with transaction.atomic():
-            organization = Organization.objects.create(
-                schema_name=schema_name, name=organization_name, tenant_type='STP', org_type='ROOM_BOOKING',
-            )
-            Domain.objects.create(domain=f'{schema_name}.localhost', tenant=organization, is_primary=True)
-            user = User(organization=organization, role='STP_ADMIN', **validated_data)
-            user.set_password(password)
-            user.save()
-
-        send_email(
-            f'Welcome to CoreX - {organization.name} is ready',
-            f"Hello {user.first_name},\n\nYour organization {organization.name} has been created and you are its admin.\n"
-            f"Sign in at {settings.FRONTEND_URL}/login with {user.email}.\n",
-            user.email,
+        from apps.tenants.onboarding import create_customer
+        _org, admin = create_customer(
+            account_type=validated_data['account_type'], name=validated_data['organization_name'],
+            first_name=validated_data['first_name'].strip(), last_name=validated_data['last_name'].strip(),
+            email=validated_data['email'], phone=validated_data.get('phone', ''),
+            status='PENDING', signed_up=True, property_limit=settings.SIGNUP_PROPERTY_LIMIT,
         )
-        return user
+        return admin

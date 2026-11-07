@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from './LoadingSpinner';
 
 const portalHome = (role) => (
-  role?.startsWith('MSP') ? '/msp' : role?.startsWith('STP') ? '/stp' : role === 'EMPLOYEE' ? '/employee' : '/login'
+  role === 'PLATFORM_ADMIN' ? '/platform'
+    : role?.startsWith('MSP') ? '/msp' : role?.startsWith('STP') ? '/stp' : role === 'EMPLOYEE' ? '/employee' : '/login'
 );
 
 /**

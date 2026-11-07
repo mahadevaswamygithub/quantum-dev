@@ -119,6 +119,7 @@ export const AuthProvider = ({ children }) => {
   const getPortalRoute = (who = user) => {
     if (!who) return '/login';
     switch (who.role) {
+      case 'PLATFORM_ADMIN': return '/platform';
       case 'MSP_ADMIN':
       case 'MSP_USER': return '/msp';
       case 'STP_ADMIN':

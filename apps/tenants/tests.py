@@ -23,73 +23,57 @@ class OrganizationSerializerTests(SimpleTestCase):
         self.assertEqual(serializer.get_parent_name(org), "Parent MSP Corp")
 
 
-class OrganizationCreateSerializerTests(SimpleTestCase):
-    @patch('apps.tenants.serializers.User.objects.filter')
-    def test_msp_cannot_have_parent_organization(self, mock_user_filter):
-        mock_user_filter.return_value.exists.return_value = False
+def _msp_request(limit_reached=False, role='MSP_ADMIN', tenant_type='MSP'):
+    """A request from MSP staff whose own organization is MSP #5."""
+    org = MagicMock(spec=Organization)
+    org.id, org.tenant_type, org.property_limit = 5, tenant_type, 3
+    org.property_limit_reached.return_value = limit_reached
+    request = MagicMock()
+    request.user.role, request.user.organization = role, org
+    return {'request': request}
 
-        data = {
-            'name': 'Test MSP',
-            'tenant_type': 'MSP',
-            'parent_organization_id': 99,
-            'admin_first_name': 'John',
-            'admin_last_name': 'Doe',
-            'admin_email': 'john@example.com',
-        }
-        mock_parent = MagicMock()
-        mock_parent.tenant_type = 'MSP'
-        with patch('apps.tenants.serializers.Organization.objects.get', return_value=mock_parent):
-            serializer = OrganizationCreateSerializer(data=data)
-            self.assertFalse(serializer.is_valid())
-            self.assertIn("MSP cannot have a parent organization", str(serializer.errors))
+
+class OrganizationCreateSerializerTests(SimpleTestCase):
+    BASE = {'name': 'Taj Goa', 'admin_first_name': 'Jane', 'admin_last_name': 'Doe', 'admin_email': 'jane@example.com'}
+
+    @patch('apps.tenants.serializers.User.objects.filter')
+    def test_msp_adds_a_hotel_under_its_own_account(self, mock_user_filter):
+        mock_user_filter.return_value.exists.return_value = False
+        serializer = OrganizationCreateSerializer(data={**self.BASE, 'org_type': 'ROOM_BOOKING'}, context=_msp_request())
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data['tenant_type'], 'STP')
+        self.assertEqual(serializer.validated_data['parent'].id, 5)
+
+    @patch('apps.tenants.serializers.User.objects.filter')
+    def test_cannot_create_msp_or_use_another_customers_parent(self, mock_user_filter):
+        mock_user_filter.return_value.exists.return_value = False
+        for extra in ({'tenant_type': 'MSP'}, {'parent_organization_id': 99, 'org_type': 'ROOM_BOOKING'}):
+            serializer = OrganizationCreateSerializer(data={**self.BASE, **extra}, context=_msp_request())
+            self.assertFalse(serializer.is_valid(), extra)
+            self.assertIn('own account', str(serializer.errors))
+
+    @patch('apps.tenants.serializers.User.objects.filter')
+    def test_property_limit_and_non_msp_callers(self, mock_user_filter):
+        mock_user_filter.return_value.exists.return_value = False
+        data = {**self.BASE, 'org_type': 'ROOM_BOOKING'}
+        serializer = OrganizationCreateSerializer(data=data, context=_msp_request(limit_reached=True))
+        self.assertFalse(serializer.is_valid())
+        self.assertIn('plan allows 3 hotels', str(serializer.errors))
+        for ctx in (_msp_request(role='STP_ADMIN', tenant_type='STP'), {}):
+            self.assertFalse(OrganizationCreateSerializer(data=data, context=ctx).is_valid())
 
     @patch('apps.tenants.serializers.User.objects.filter')
     def test_stp_requires_org_type(self, mock_user_filter):
         mock_user_filter.return_value.exists.return_value = False
-
-        data = {
-            'name': 'Test STP',
-            'tenant_type': 'STP',
-            'org_type': None,
-            'admin_first_name': 'Jane',
-            'admin_last_name': 'Doe',
-            'admin_email': 'jane@example.com',
-        }
-        serializer = OrganizationCreateSerializer(data=data)
+        serializer = OrganizationCreateSerializer(data={**self.BASE, 'org_type': None}, context=_msp_request())
         self.assertFalse(serializer.is_valid())
         self.assertIn('org_type', serializer.errors)
 
     @patch('apps.tenants.serializers.User.objects.filter')
-    def test_msp_forces_org_type_to_none(self, mock_user_filter):
-        mock_user_filter.return_value.exists.return_value = False
-
-        data = {
-            'name': 'Valid MSP Org',
-            'tenant_type': 'MSP',
-            'org_type': 'ROOM_BOOKING',  # Should be cleared for MSP
-            'admin_first_name': 'Admin',
-            'admin_last_name': 'User',
-            'admin_email': 'admin@example.com',
-        }
-        serializer = OrganizationCreateSerializer(data=data)
-        self.assertTrue(serializer.is_valid(), serializer.errors)
-        self.assertIsNone(serializer.validated_data.get('org_type'))
-
-    @patch('apps.tenants.serializers.User.objects.filter')
     def test_rounds_latitude_longitude_on_create(self, mock_user_filter):
         mock_user_filter.return_value.exists.return_value = False
-
-        data = {
-            'name': 'STP with Coordinates',
-            'tenant_type': 'STP',
-            'org_type': 'ROOM_BOOKING',
-            'latitude': '13.082680123',
-            'longitude': '80.270718999',
-            'admin_first_name': 'Coord',
-            'admin_last_name': 'Admin',
-            'admin_email': 'coord@example.com',
-        }
-        serializer = OrganizationCreateSerializer(data=data)
+        data = {**self.BASE, 'org_type': 'ROOM_BOOKING', 'latitude': '13.082680123', 'longitude': '80.270718999'}
+        serializer = OrganizationCreateSerializer(data=data, context=_msp_request())
         self.assertTrue(serializer.is_valid(), serializer.errors)
         self.assertEqual(serializer.validated_data['latitude'], Decimal('13.082680'))
         self.assertEqual(serializer.validated_data['longitude'], Decimal('80.270719'))

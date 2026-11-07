@@ -258,11 +258,9 @@ class CustomerRegisterSerializer(serializers.ModelSerializer):
     def validate_organization_id(self, value):
         if value is None:
             return None
-        try:
-            org = Organization.objects.get(id=value)
-        except Organization.DoesNotExist:
+        if not Organization.objects.filter(id=value).exists():
             raise serializers.ValidationError('Organization not found.')
-        if org.tenant_type != 'STP' or org.org_type != 'ROOM_BOOKING' or not org.is_active:
+        if not Organization.objects.bookable().filter(id=value).exists():
             raise serializers.ValidationError('This organization is not accepting bookings.')
         return value
 

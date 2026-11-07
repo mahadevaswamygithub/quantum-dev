@@ -33,6 +33,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
  
 class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSerializer):
     parent_organization_id = serializers.IntegerField(required=False, allow_null=True)
+    tenant_type = serializers.ChoiceField(choices=['STP', 'MSP'], required=False, default='STP')
     org_type = serializers.ChoiceField(
         choices=[c for c in Organization.ORG_TYPE_CHOICES if c[0] in Organization.AVAILABLE_ORG_TYPES],
         required=False, allow_null=True,
@@ -55,95 +56,59 @@ class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSer
             raise serializers.ValidationError("A user with this email already exists")
         return value
 
-    def validate_parent_organization_id(self, value):
-        if value:
-            try:
-                org = Organization.objects.get(id=value)
-                if org.tenant_type != 'MSP':
-                    raise serializers.ValidationError(
-                        "Parent organization must be an MSP"
-                    )
-            except Organization.DoesNotExist:
-                raise serializers.ValidationError("Parent organization not found")
-        return value
-    
     def validate(self, data):
-        # If tenant_type is STP and no parent, it should be standalone
-        if data['tenant_type'] == 'STP' and not data.get('parent_organization_id'):
-            # This is fine - standalone STP
-            pass
-
-        # If tenant_type is MSP, it should not have a parent
-        if data['tenant_type'] == 'MSP' and data.get('parent_organization_id'):
+        """An MSP adds hotels (STP client organizations) under its OWN account
+        only, within its property limit. New customer accounts (MSP or
+        standalone STP) are created by the platform owner or by sign-up
+        (apps.tenants.onboarding), never here."""
+        request = self.context.get('request')
+        me = getattr(request, 'user', None)
+        my_org = getattr(me, 'organization', None)
+        if me is None or me.role not in ('MSP_ADMIN', 'MSP_USER') or not my_org or my_org.tenant_type != 'MSP':
+            raise serializers.ValidationError({'error': 'Only a hotel group (MSP) can add organizations.'})
+        requested_parent = data.get('parent_organization_id')
+        if data.get('tenant_type', 'STP') != 'STP' or (requested_parent and requested_parent != my_org.id):
             raise serializers.ValidationError(
-                "MSP cannot have a parent organization"
-            )
-
-        # org_type is a business vertical for STP orgs only - MSP orgs are
-        # purely administrative and never get one.
-        if data['tenant_type'] == 'STP' and not data.get('org_type'):
+                {'error': 'You can only add hotels to your own account. Contact CoreX to open another account.'})
+        if my_org.property_limit_reached():
+            raise serializers.ValidationError({'error': (
+                f'Your plan allows {my_org.property_limit} hotel{"s" if my_org.property_limit != 1 else ""}. '
+                'Contact CoreX to add more.')})
+        data['tenant_type'] = 'STP'
+        data['parent'] = my_org
+        if not data.get('org_type'):
             raise serializers.ValidationError(
                 {'org_type': "Organization type is required for STP organizations."}
             )
-        if data['tenant_type'] == 'MSP':
-            data['org_type'] = None
-
         return data
-    
+
     def create(self, validated_data):
-        parent_organization_id = validated_data.pop('parent_organization_id', None)
+        from django.db import transaction
+        from apps.users.serializers.users import send_invite_email
+        from .onboarding import create_organization, unique_username
+        validated_data.pop('parent_organization_id', None)
+        parent = validated_data.pop('parent')
         admin_first_name = validated_data.pop('admin_first_name')
         admin_last_name = validated_data.pop('admin_last_name')
         admin_email = validated_data.pop('admin_email')
-        name = validated_data.get('name')
 
-        # Derive schema name (and from it, the domain) from the organization
-        # name - de-duplicated in case two orgs share a name/slug.
-        base_schema_name = name.lower().replace(' ', '_').replace('-', '_')
-        schema_name = base_schema_name
-        suffix = 1
-        while Organization.objects.filter(schema_name=schema_name).exists():
-            suffix += 1
-            schema_name = f"{base_schema_name}{suffix}"
-        domain_name = f"{schema_name}.localhost"
-
-        # Set parent if provided
-        parent_organization = None
-        if parent_organization_id:
-            parent_organization = Organization.objects.get(id=parent_organization_id)
-
-        # Create organization
-        organization = Organization.objects.create(
-            schema_name=schema_name,
-            parent_organization=parent_organization,
-            **validated_data
-        )
-
-        # Create domain
-        Domain.objects.create(
-            domain=domain_name,
-            tenant=organization,
-            is_primary=True
-        )
-
-        # Every organization gets exactly one admin user at creation time
-        admin_role = 'MSP_ADMIN' if organization.tenant_type == 'MSP' else 'STP_ADMIN'
-        admin_username = f"{schema_name}_admin"
-        # No password is generated or emailed: the admin gets a set-your-password
-        # link (same as staff invites; "Resend invite" works if it's lost).
-        from apps.users.serializers.users import send_invite_email
-        admin = User.objects.create_user(
-            username=admin_username,
-            email=admin_email,
-            first_name=admin_first_name,
-            last_name=admin_last_name,
-            password=None,
-            organization=organization,
-            role=admin_role,
-            is_auto_generated=True,
-        )
-        send_invite_email(admin)
-
+        with transaction.atomic():
+            organization = create_organization(
+                validated_data.pop('name'), validated_data.pop('tenant_type'), parent=parent,
+                org_type=validated_data.pop('org_type'), **validated_data)
+            # Every hotel gets its own admin (its manager). No password is sent:
+            # they get a set-your-password link ("Resend invite" if it's lost).
+            admin = User.objects.create_user(
+                username=unique_username(admin_email),
+                email=admin_email,
+                first_name=admin_first_name,
+                last_name=admin_last_name,
+                password=None,
+                organization=organization,
+                role='STP_ADMIN',
+                is_auto_generated=True,
+            )
+            transaction.on_commit(lambda: send_invite_email(admin))
         return organization
 
 class OwnOrganizationSerializer(RoundedCoordinatesMixin, serializers.ModelSerializer):
@@ -153,15 +118,26 @@ class OwnOrganizationSerializer(RoundedCoordinatesMixin, serializers.ModelSerial
     managed by whoever administers the org, not by the org itself."""
     logo = serializers.SerializerMethodField()
     cover_image = serializers.SerializerMethodField()
+    account = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = [
             'id', 'name', 'logo', 'cover_image', 'tenant_type', 'org_type', 'is_active',
             'contact_email', 'contact_phone', 'address', 'latitude', 'longitude',
-            'created_on',
+            'created_on', 'account',
         ]
         read_only_fields = ['id', 'logo', 'cover_image', 'tenant_type', 'org_type', 'is_active', 'created_on']
+
+    def get_account(self, obj):
+        """The customer account this organization belongs to: its status and hotel limit."""
+        customer = obj.customer
+        return {
+            'status': obj.effective_status,
+            'status_reason': customer.status_reason,
+            'property_limit': customer.property_limit,
+            'property_count': customer.property_count(),
+        }
 
     def _url(self, f):
         if not f:

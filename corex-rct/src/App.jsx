@@ -54,6 +54,10 @@ import CustomerPrivateRoute from './components/CustomerPrivateRoute';
 // Employee Portal
 import EmployeePortal from './pages/EmployeePortal';
 
+// Platform owner console
+import PlatformCustomers from './pages/platform/PlatformCustomers';
+import AccountStatusBanner from './components/AccountStatusBanner';
+
 const MSP_ROLES = ['MSP_ADMIN', 'MSP_USER'];
 const STP_ROLES = ['STP_ADMIN', 'STP_USER'];
 // Activity log is admin-only - matches ActivityLogViewSet.get_queryset on the backend.
@@ -64,6 +68,7 @@ const AppRoutes = () => {
   const defaultRoute = () => {
     if (!user) return '/login';
     switch (user.role) {
+      case 'PLATFORM_ADMIN': return '/platform';
       case 'MSP_ADMIN':
       case 'MSP_USER': return '/msp';
       case 'STP_ADMIN':
@@ -116,7 +121,10 @@ const AppRoutes = () => {
       <Route path="/book/:orgId/profile" element={<Navigate to="/book/me/profile" replace />} />
 
       {/* The signed-in staff member's own profile (Settings is organization-level). */}
-      <Route path="/profile" element={<PrivateRoute allowedRoles={[...MSP_ROLES, ...STP_ROLES]}><ProfilePage /></PrivateRoute>} />
+      <Route path="/profile" element={<PrivateRoute allowedRoles={[...MSP_ROLES, ...STP_ROLES, 'PLATFORM_ADMIN']}><ProfilePage /></PrivateRoute>} />
+
+      {/* ── Platform owner (CoreX): customer accounts ── */}
+      <Route path="/platform" element={<PrivateRoute allowedRoles={['PLATFORM_ADMIN']}><PlatformCustomers /></PrivateRoute>} />
 
       {/* ── MSP ── */}
       <Route path="/msp" element={<PrivateRoute allowedRoles={MSP_ROLES}><MSPDashboard /></PrivateRoute>} />
@@ -163,11 +171,13 @@ const AppWithChat = () => {
   return (
     <>
       <ImpersonationBanner />
+      {!onBookingSite && <AccountStatusBanner />}
       <AppRoutes />
       {/* Org-management assistant - not relevant to EMPLOYEE (self-service
-          portal) or CUSTOMER (public booking site; its tools query
-          Organization/User data a customer has no access to anyway). */}
-      {user && !onBookingSite && !['EMPLOYEE', 'CUSTOMER'].includes(user.role) && (
+          portal), CUSTOMER (public booking site; its tools query
+          Organization/User data a customer has no access to anyway) or the
+          platform owner (its tools are scoped to one customer's organizations). */}
+      {user && !onBookingSite && !['EMPLOYEE', 'CUSTOMER', 'PLATFORM_ADMIN'].includes(user.role) && (
         <ChatAssistant sessionId={`session_${user.id}`} user={{ role: user.role }} />
       )}
     </>

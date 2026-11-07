@@ -47,13 +47,10 @@ class UserRegistrationView(generics.CreateAPIView):
         user = serializer.save()
 
         return Response({
-            'message': 'Your organization is ready. You can sign in now.',
-            'user': {
-                'username': user.username,
-                'email': user.email,
-                'organization': user.organization.name,
-                'role': user.role
-            }
+            'message': f'Check {user.email} for a link to set your password. '
+                       'Your hotels go live for guests once CoreX approves your account.',
+            'email': user.email,
+            'organization': user.organization.name,
         }, status=status.HTTP_201_CREATED)
 
 
@@ -94,6 +91,11 @@ class LoginView(APIView):
 
         if not user.is_active:
             return Response({'error': 'Account is deactivated'}, status=status.HTTP_403_FORBIDDEN)
+        # Suspended / closed / deactivated organization (pending ones may sign in to set up).
+        from apps.core.authentication import org_sign_in_problem
+        problem = org_sign_in_problem(user)
+        if problem:
+            return Response({'error': problem}, status=status.HTTP_403_FORBIDDEN)
 
         # Two-step verification: the password was right, now ask for a code
         # (or, for a role that requires it, set it up first).
@@ -107,6 +109,10 @@ class LoginView(APIView):
 
 def login_response(request, user, extra=None):
     """Issue tokens for a fully authenticated user (password + any 2FA)."""
+    from apps.core.authentication import org_sign_in_problem
+    problem = org_sign_in_problem(user)  # also covers the 2FA step, which ends here
+    if problem:
+        return Response({'error': problem}, status=status.HTTP_403_FORBIDDEN)
     refresh = RefreshToken.for_user(user)
     update_last_login(None, user)
     # actor=user passed explicitly - request.user is still AnonymousUser
@@ -171,6 +177,10 @@ class ImpersonationExchangeView(APIView):
             return Response({'error': 'This impersonation link has expired or was already used.'}, status=status.HTTP_400_BAD_REQUEST)
 
         user = token.target_user
+        from apps.core.authentication import org_sign_in_problem
+        problem = org_sign_in_problem(user)
+        if problem:
+            return Response({'error': problem}, status=status.HTTP_403_FORBIDDEN)
         refresh = RefreshToken.for_user(user)
         log_activity(
             request, 'LOGIN', actor=user, organization=user.organization,

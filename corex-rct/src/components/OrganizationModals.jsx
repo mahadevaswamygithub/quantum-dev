@@ -60,20 +60,21 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
       onSuccess();
       onClose();
     } catch (err) {
+      const apiError = err.response?.data?.error;
       setError(
         err.response?.data?.name?.[0] ||
         err.response?.data?.org_type?.[0] ||
         err.response?.data?.latitude?.[0] ||
         err.response?.data?.longitude?.[0] ||
         err.response?.data?.admin_email?.[0] ||
-        err.response?.data?.error ||
+        (Array.isArray(apiError) ? apiError.join(' ') : apiError) ||
         'Failed to create organization'
       );
     } finally { setLoading(false); }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={parentOrgId ? 'Add Sub-Organization' : 'Add Organization'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={parentOrgId ? 'Add hotel' : 'Add Organization'}>
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm">{error}</div>}
         <div>

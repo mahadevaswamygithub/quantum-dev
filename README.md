@@ -3,6 +3,103 @@
 Multi-tenant MSP/STP management platform: Django REST backend, React frontend,
 and an AI chat assistant built on a FastAPI + LangGraph agent.
 
+## Production quick start
+
+What to do after deploying to a server. Details: [Customer accounts](#customer-accounts),
+[Production checklist](#production-checklist-reliability), [k8s/README.md](k8s/README.md).
+
+### 1. Deploy
+
+| How | Command |
+|---|---|
+| Docker Compose | `cp .env.prod.example .env.prod` (fill it in), then `docker compose -f docker-compose.prod.yml --env-file .env.prod up --build -d` |
+| Kubernetes | fill in `k8s/overlays/production/secrets/*.env` and the domain, then `k8s/deploy.sh k8s/overlays/production` |
+
+Database migrations run by themselves (the backend container at start-up; on
+Kubernetes, the `corex-migrate` job, which new pods wait for). Existing
+organizations become **Active** with no hotel limit.
+
+### 2. Create the platform owner account (once)
+
+The platform owner (role `PLATFORM_ADMIN`) runs the **Customers** console at
+`/platform`: approves sign-ups, suspends or closes accounts, sets hotel limits.
+Run this on the production backend:
+
+```bash
+# Docker Compose (on the server, in the project folder)
+docker compose -f docker-compose.prod.yml exec backend \
+  python manage.py create_platform_admin --email ops@your-domain.com --first-name Ops --last-name Team
+
+# Kubernetes (kubectl pointed at the cluster)
+kubectl -n corex exec deploy/backend -- \
+  python manage.py create_platform_admin --email ops@your-domain.com --first-name Ops --last-name Team
+```
+
+It emails a set-password link. Add `--print-link` to also print it, if email
+isn't working yet. Then sign in at `https://your-domain.com/login`, set up
+two-step verification (required for this role) and you land on **Customers**.
+
+- `Unknown command: 'create_platform_admin'` means the server runs an older
+  version: deploy the latest code first.
+- Use a mailbox someone reads (sign-up alerts and password resets go there),
+  not the no-reply sending address.
+- One account per person (the activity log shows who approved or suspended
+  what), and keep the number small: this role can suspend any customer.
+
+### 3. Email
+
+Every invite, approval, password reset and booking email depends on it.
+
+- **Don't use Gmail in production**: about 500 emails a day, often lands in
+  spam, and a password change on the Gmail account stops all mail. For testing
+  it needs a 16-letter app password (Google account → Security → 2-Step
+  Verification on → App passwords), not the account password.
+- Use a transactional email service: **Amazon SES** (cheapest), SendGrid,
+  Brevo, Postmark or Mailgun. Send from your own domain and add the SPF, DKIM
+  and DMARC DNS records the provider gives you.
+
+```
+EMAIL_HOST=email-smtp.ap-south-1.amazonaws.com   # SES example
+EMAIL_PORT=587
+EMAIL_HOST_USER=<from the provider>
+EMAIL_HOST_PASSWORD=<from the provider>
+DEFAULT_FROM_EMAIL=CoreX <no-reply@your-domain.com>
+FRONTEND_URL=https://your-domain.com             # links in emails use it
+```
+
+Put them in `.env.prod` (Docker Compose) or
+`k8s/overlays/production/secrets/backend.env` (Kubernetes); both are
+git-ignored. After a change: `docker compose -f docker-compose.prod.yml up -d`
+(a plain `restart` doesn't re-read the file) or `k8s/deploy.sh` again.
+Test it with "Forgot password" on the login page.
+
+### 4. Hotel sign-up
+
+| Setting | Recommendation |
+|---|---|
+| `ALLOW_PUBLIC_ORG_SIGNUP` | `False` until email works and someone watches the approval queue, then `True` (hotels sign up at `/register`) |
+| `SIGNUP_PROPERTY_LIMIT` | Hotels a new sign-up gets until you raise it (default 3) |
+| `TWO_FACTOR_REQUIRED_ROLES` | Leave it out: the default requires two-step verification for MSP admins and the platform owner |
+
+Docker Compose: in `.env.prod`. Kubernetes: in `corex-config` in
+`k8s/overlays/production/kustomization.yaml`.
+
+### 5. Kubernetes notes
+
+- The cluster needs ingress-nginx, cert-manager (`letsencrypt-prod`
+  ClusterIssuer) and metrics-server; use a managed Postgres and an S3 bucket
+  (`USE_S3=True`).
+- Deploy an image tag per release (the git commit SHA built by
+  `.github/workflows/images.yml`), not `latest`, so a rollback is the previous
+  tag plus `k8s/deploy.sh`.
+- Run any management command with
+  `kubectl -n corex exec deploy/backend -- python manage.py <command>`.
+- Logs: `kubectl -n corex logs deploy/backend --tail=100`. Health:
+  `curl https://your-domain.com/api/health/ready/`.
+- The orchestrator (AI chat) is internal only; never expose port 8002.
+- Try the whole thing locally on Docker Desktop: `k8s/overlays/local` (see
+  [k8s/README.md](k8s/README.md)).
+
 ## Architecture
 
 ```
@@ -245,6 +342,25 @@ The Celery terminal should show `celery@<host> ready.` and no
 Then log in to the app at `http://localhost:3000` and open the chat
 assistant (bottom-right bubble, hidden for Employee-role users) to exercise
 the full chain end-to-end.
+
+## Customer accounts
+
+```
+Platform owner (PLATFORM_ADMIN, /platform)   approves, suspends, sets hotel limits
+ ├── STP  "Green Stays"   most customers: one business, hotels are Properties inside it
+ └── MSP  "Taj Group"     optional: a group whose hotels are separate STPs, each with its own manager
+```
+
+- **Create the platform owner** (once per installation):
+  `python manage.py create_platform_admin --email you@corex.com --first-name Asha --print-link`
+  The account sets its password from the link and must turn on two-step verification.
+- **Onboarding:** the platform owner creates customers from **Customers → New customer** (active at once),
+  or, with `ALLOW_PUBLIC_ORG_SIGNUP=True`, hotels sign up at `/register`. Sign-ups are **pending**: they can
+  sign in and set up, but guests can't see them until the platform owner approves.
+- **Status:** pending → active → suspended / closed. Suspended or closed accounts are signed out at once,
+  can't sign in, and disappear from the booking site; their bookings are kept.
+- **Hotel limit:** per customer (MSP: its STP hotels; single business: its properties).
+  Sign-ups start at `SIGNUP_PROPERTY_LIMIT`.
 
 ## Production checklist (reliability)
 

@@ -43,14 +43,19 @@ const OrganizationsList = () => {
   const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
   const basePath = '/msp';
 
+  // This customer account's hotel limit (set by CoreX): {property_limit, property_count, status}.
+  const [account, setAccount] = useState(null);
+
   const fetchData = useCallback(async () => {
     try {
-      const [orgsRes, usersRes] = await Promise.all([
+      const [orgsRes, usersRes, mineRes] = await Promise.all([
         tenantAPI.getTenants(),
         userAPI.getUsers(),
+        tenantAPI.getMyOrganization().catch(() => null),
       ]);
       setOrganizations(orgsRes.data || []);
       setAllUsers(usersRes.data || []);
+      setAccount(mineRes?.data?.account || null);
     } catch (err) {
       console.error(err);
     } finally {
@@ -102,6 +107,7 @@ const OrganizationsList = () => {
   };
 
   if (loading) return <PageSpinner label="Loading..." />;
+  const limitReached = !!account?.property_limit && account.property_count >= account.property_limit;
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
@@ -121,11 +127,20 @@ const OrganizationsList = () => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Organizations</h1>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {organizations.length} organizations</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+                  {filtered.length} of {organizations.length} organizations
+                  {account?.property_limit ? ` · your plan: ${account.property_count} of ${account.property_limit} hotels used` : ''}
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 {isMSP && can('organizations.manage') && (
-                  <Button icon={Plus} onClick={() => setShowAddModal(true)}>Add Organization</Button>
+                  limitReached ? (
+                    <span className="text-sm text-slate-500 dark:text-slate-400" title="Contact CoreX to raise your plan's hotel limit">
+                      Hotel limit reached. Contact CoreX to add more.
+                    </span>
+                  ) : (
+                    <Button icon={Plus} onClick={() => setShowAddModal(true)}>Add hotel</Button>
+                  )
                 )}
                 <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
               </div>

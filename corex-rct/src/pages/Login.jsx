@@ -126,12 +126,12 @@ const Login = () => {
 
             <div className="mt-6 text-center" hidden={!signupOpen}>
               <p className="text-slate-500 dark:text-slate-400">
-                Don't have an account?{' '}
+                Run a hotel?{' '}
                 <Link
                   to="/register"
                   className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-semibold"
                 >
-                  Register here
+                  List it on CoreX
                 </Link>
               </p>
             </div>

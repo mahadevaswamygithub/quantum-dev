@@ -25,9 +25,8 @@ def public_stays(build_url, check_in=None, check_out=None, guests=None):
     `available_rooms` (rooms free for that stay, big enough for `guests`).
     `build_url` turns a media path into an absolute URL."""
 
-    orgs = list(Organization.objects.filter(
-        tenant_type='STP', org_type='ROOM_BOOKING', is_active=True,
-    ).order_by('name'))
+    # Approved, switched-on accounts only (pending/suspended customers are hidden).
+    orgs = list(Organization.objects.bookable().order_by('name'))
     ids = [o.id for o in orgs]
     active_rooms = (Room.objects.filter(organization_id__in=ids, is_active=True)
                     .filter(Q(property__isnull=True) | Q(property__is_active=True)))

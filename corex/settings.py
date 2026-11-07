@@ -166,7 +166,8 @@ USERNAME_FIELD = "email"
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # JWT + the organization's account status (suspended/closed/deactivated → signed out).
+        'apps.core.authentication.OrgStatusJWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
@@ -210,10 +211,13 @@ if HTTPS_ENABLED:
 # Public "create your organization" sign-up (/register). Off by default:
 # organizations are normally created by an MSP admin.
 ALLOW_PUBLIC_ORG_SIGNUP = config('ALLOW_PUBLIC_ORG_SIGNUP', default=False, cast=bool)
+# Hotels a self-signed-up customer may have until the platform owner raises it
+# (MSP: client organizations; single business: properties). Empty = no limit.
+SIGNUP_PROPERTY_LIMIT = config('SIGNUP_PROPERTY_LIMIT', default='3', cast=lambda v: int(v) if str(v).strip() else None)
 
 # Login lockout: this many failed attempts for one email locks it for LOGIN_LOCKOUT_MINUTES.
 # Roles that must use two-step verification (others may turn it on themselves).
-TWO_FACTOR_REQUIRED_ROLES = config('TWO_FACTOR_REQUIRED_ROLES', default='MSP_ADMIN', cast=Csv())
+TWO_FACTOR_REQUIRED_ROLES = config('TWO_FACTOR_REQUIRED_ROLES', default='MSP_ADMIN,PLATFORM_ADMIN', cast=Csv())
 LOGIN_MAX_FAILURES = config('LOGIN_MAX_FAILURES', default=5, cast=int)
 LOGIN_LOCKOUT_MINUTES = config('LOGIN_LOCKOUT_MINUTES', default=15, cast=int)
 

@@ -62,6 +62,15 @@ add-on). EKS, GKE and AKS all work.
    curl https://<your-domain>/api/health/ready/
    ```
 
+6. **Platform owner account** (first deploy only): creates the account that
+   approves and manages customers at `/platform`.
+   ```bash
+   kubectl -n corex exec deploy/backend -- \
+     python manage.py create_platform_admin --email ops@your-domain.com --first-name Ops --last-name Team
+   ```
+   It emails a set-password link (`--print-link` also prints it). See
+   "Production quick start" in the [root README](../README.md).
+
 **Rollback:** set the previous image tag and run `deploy.sh` again, or
 `kubectl -n corex rollout undo deployment/backend`. Migrations don't roll back
 by themselves, so keep them backwards compatible (add columns first, remove

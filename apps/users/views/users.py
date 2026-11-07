@@ -68,7 +68,7 @@ class UserViewSet(OrganizationScopedQuerysetMixin, viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        qs = User.objects.select_related('organization').order_by('-created_at')
+        qs = User.objects.select_related('organization__parent_organization').order_by('-created_at')
 
         if user.role in SELF_SERVICE_ROLES:
             return qs.filter(id=user.id)
