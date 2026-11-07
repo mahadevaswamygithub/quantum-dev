@@ -75,4 +75,30 @@ api.interceptors.response.use(
   }
 );
 
+/**
+ * fetch() with the same sign-in handling as `api` - for calls axios can't do,
+ * like the chat's streamed replies. Adds the access token; on a 401 renews it
+ * once (sharing the in-flight refresh) and retries; if renewal fails, sends
+ * the user to sign in. `path` is relative to API_BASE_URL.
+ */
+export const authFetch = async (path, options = {}) => {
+  const send = (token) => fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: {
+      'ngrok-skip-browser-warning': 'true',
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const res = await send(tokenStorage.get('accessToken'));
+  if (res.status !== 401 || !tokenStorage.get('refreshToken')) return res;
+  try {
+    refreshing = refreshing || refreshTokens().finally(() => { refreshing = null; });
+    return await send(await refreshing);
+  } catch {
+    sendToLogin();
+    return res;
+  }
+};
+
 export default api;

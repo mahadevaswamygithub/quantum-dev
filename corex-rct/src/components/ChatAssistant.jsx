@@ -258,7 +258,13 @@ function useChat(sid) {
     abortRef.current = controller;
     try {
       const resp = await chatAPI.streamMessage(text,sid,controller.signal);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) {
+        throw new Error(
+          resp.status === 401 ? 'Your session ended. Please sign in again.'
+            : resp.status === 403 ? 'Your role can’t use the assistant.'
+            : resp.status >= 500 ? 'The assistant is unavailable right now. Please try again in a moment.'
+            : `Request failed (${resp.status}).`);
+      }
       const reader=resp.body.getReader(), dec=new TextDecoder();
       let buf="";
       while(true){
@@ -746,17 +752,32 @@ function InputBar({value,onChange,onKeyDown,onSend,onStop,disabled,inputRef}){
   );
 }
 
+/* Phones (< 640px): the panel opens full-screen and the button sits closer to the edge. */
+function useIsPhone(){
+  const query = "(max-width: 639px)";
+  const [phone,setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(query).matches);
+  useEffect(()=>{
+    const mq = window.matchMedia?.(query);
+    if(!mq) return undefined;
+    const on = () => setPhone(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  },[]);
+  return phone;
+}
+
 /* ─── FAB ────────────────────────────────────────────────────────────────── */
 function Fab({onClick}){
   const [hov,setHov]=useState(false);
+  const phone = useIsPhone();
   return (
     <button
       className="cx-fab-pop" onClick={onClick}
       onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      title="Open CoreX AI"
+      title="Open CoreX AI" aria-label="Open CoreX AI assistant"
       style={{
-        position:"fixed",bottom:28,right:28,zIndex:9999,
-        width:58,height:58,borderRadius:17,border:"none",cursor:"pointer",
+        position:"fixed",bottom:phone?16:28,right:phone?16:28,zIndex:9999,
+        width:phone?52:58,height:phone?52:58,borderRadius:17,border:"none",cursor:"pointer",
         background:hov
           ?"linear-gradient(145deg,#4C51BF,#2B6CB0)"
           :"linear-gradient(145deg,#2B6CB0,#4C51BF)",
@@ -782,6 +803,7 @@ export default function ChatAssistant({sessionId:propSid,user}){
   const inputRef  = useRef(null);
   const sid = useStableSession(propSid,user?.id);
   const {msgs,loading,activeTool,send,clear,stop} = useChat(sid);
+  const phone = useIsPhone();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,activeTool]);
   useEffect(()=>{ if(open) setTimeout(()=>inputRef.current?.focus(),120); },[open]);
@@ -793,12 +815,15 @@ export default function ChatAssistant({sessionId:propSid,user}){
 
   return (
     <div className="cx-panel" style={{
-      position:"fixed",bottom:28,right:28,zIndex:9999,
-      width:expanded?"min(560px, 92vw)":400,
-      height:expanded?"min(820px, 88vh)":620,
+      position:"fixed",zIndex:9999,
+      ...(phone
+        ? { inset:0, width:"100vw", height:"100dvh" }   // full screen on phones
+        : { bottom:28, right:28,
+            width:expanded?"min(560px, 92vw)":"min(400px, calc(100vw - 32px))",
+            height:expanded?"min(820px, 88vh)":"min(620px, calc(100vh - 56px))" }),
       background:T.panel,
-      border:"1px solid var(--cx-border)",
-      borderRadius:22,
+      border:phone?"none":"1px solid var(--cx-border)",
+      borderRadius:phone?0:22,
       display:"flex",flexDirection:"column",overflow:"hidden",
       fontFamily:T.fontB,
       boxShadow:"var(--cx-panel-shadow)",

@@ -503,7 +503,7 @@ const EmployeePortal = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole="EMPLOYEE" collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
           <div className="mb-5">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Portal</h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Your personal information and records</p>

@@ -136,7 +136,7 @@ const STPDashboard = () => {
       <Navbar />
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{greeting()}, {user.first_name}</h1>

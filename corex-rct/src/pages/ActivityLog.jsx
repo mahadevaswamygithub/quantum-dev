@@ -116,10 +116,10 @@ const ActivityLogPage = () => {
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
 
-        <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden min-h-0 flex flex-col">
           {/* Static header + toolbar - only the records list below scrolls */}
           <div className="flex-shrink-0">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <History className="w-6 h-6 text-green-500" /> Activity Log

@@ -76,8 +76,8 @@ const RoomsList = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
-          <div className="flex items-center justify-between mb-6">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <BedDouble className="w-6 h-6 text-green-500" /> Rooms

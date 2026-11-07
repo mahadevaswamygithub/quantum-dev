@@ -1,32 +1,25 @@
 import { v4 as uuidv4 } from 'uuid';
-import { API_BASE_URL } from './httpClient';
-import { tokenStorage } from './tokenStorage';
+import { authFetch } from './httpClient';
 
+// Plain fetch (not axios) so replies can stream; authFetch renews an expired
+// sign-in token the same way the rest of the app does.
 export const chatAPI = {
   async streamMessage(message, sessionId, signal) {
     const validSessionId = sessionId || uuidv4();
-    const token = tokenStorage.get('accessToken');
-    return fetch(`${API_BASE_URL}/chat/stream/`, {
+    return authFetch('/chat/stream/', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message, session_id: validSessionId }),
       signal,
     });
   },
   async getHistory(sessionId) {
     if (!sessionId) return { data: { messages: [] } };
-    const token = tokenStorage.get('accessToken');
-    const res = await fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/history/`, {
-      headers: { Authorization: `Bearer ${token}`, 'ngrok-skip-browser-warning': 'true' },
-    });
+    const res = await authFetch(`/chat/sessions/${sessionId}/history/`);
     return res.json();
   },
   async clearSession(sessionId) {
     if (!sessionId) return;
-    const token = tokenStorage.get('accessToken');
-    return fetch(`${API_BASE_URL}/chat/sessions/${sessionId}/`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    return authFetch(`/chat/sessions/${sessionId}/`, { method: 'DELETE' });
   },
 };

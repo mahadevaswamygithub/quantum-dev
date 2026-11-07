@@ -62,7 +62,7 @@ const RoomCalendar = () => {
       <Navbar />
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} collapsed={collapsed} onToggleCollapse={() => setCollapsed(c => !c)} />
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2"><CalendarRange className="w-6 h-6 text-green-500" /> Room calendar</h1>

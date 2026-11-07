@@ -121,10 +121,10 @@ const OrganizationsList = () => {
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
 
-        <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden min-h-0 flex flex-col">
           {/* Static header + toolbar - only the records below scroll */}
           <div className="flex-shrink-0">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Organizations</h1>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">

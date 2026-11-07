@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
-  Building2, Users, Home, Settings, ChevronLeft, ChevronRightIcon, Briefcase, DollarSign, Clock, CalendarDays, Shield, UserCircle, History, BedDouble, CalendarCheck, CalendarRange, Wallet, Star,
+  Building2, Users, Home, Settings, ChevronLeft, ChevronRightIcon, Briefcase, DollarSign, Clock, CalendarDays, Shield, UserCircle, History, BedDouble, CalendarCheck, CalendarRange, Wallet, Star, X,
 } from 'lucide-react';
+import { mobileNav, useMobileNavOpen } from '../hooks/useMobileNav';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -9,9 +10,20 @@ import { usePermissions } from '../hooks/usePermissions';
 const formatRole = (role = '') =>
   role.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 
-const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
+const Sidebar = ({ userRole, collapsed: collapsedOnDesktop, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  // Phones: the menu is a drawer opened by the ☰ button in the Navbar. It
+  // always shows labels (the desktop "collapsed" icon rail doesn't apply).
+  const drawerOpen = useMobileNavOpen();
+  const collapsed = collapsedOnDesktop && !drawerOpen;
+  useEffect(() => { mobileNav.close(); }, [location.pathname]);
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') mobileNav.close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
   // Pulled from context rather than threaded in as a prop - Sidebar is
   // only ever rendered inside an authenticated page (already inside
   // AuthProvider), so this avoids touching every call site just to pass
@@ -65,19 +77,31 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
   };
 
   return (
+    <>
+    {/* Phones: dim the page behind the open drawer; tapping it closes the menu. */}
+    {drawerOpen && (
+      <div className="fixed inset-0 z-40 bg-slate-900/50 md:hidden" onClick={mobileNav.close} aria-hidden="true" />
+    )}
     <div
-      className={`flex h-full flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800 ${
-        collapsed ? 'w-16' : 'w-64'
-      }`}
+      className={`flex h-full flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800
+        fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] shadow-2xl ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:static md:z-auto md:max-w-none md:translate-x-0 md:shadow-none ${collapsed ? 'md:w-16' : 'md:w-64'}`}
     >
-      {/* Collapse Toggle */}
+      {/* Collapse toggle (desktop) / close (phone drawer) */}
       <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} border-b border-slate-100 p-2 dark:border-slate-700/50`}>
         <button
           onClick={onToggleCollapse}
-          className="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+          className="hidden md:block rounded-lg p-1.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={mobileNav.close}
+          className="md:hidden rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
         </button>
       </div>
 
@@ -146,6 +170,7 @@ const Sidebar = ({ userRole, collapsed, onToggleCollapse }) => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 

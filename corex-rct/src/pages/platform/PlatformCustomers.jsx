@@ -276,7 +276,7 @@ const PlatformCustomers = () => {
       <Navbar />
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} collapsed={collapsed} onToggleCollapse={() => setCollapsed((p) => !p)} />
-        <main className="flex-1 overflow-y-auto min-h-0 p-6">
+        <main className="flex-1 overflow-y-auto min-h-0 p-3 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Customers</h1>
@@ -299,10 +299,10 @@ const PlatformCustomers = () => {
           )}
 
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <div className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
+            <div className="flex max-w-full gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
               {TABS.map(([v, l]) => (
                 <button key={v || 'all'} onClick={() => setTab(v)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${tab === v
+                  className={`whitespace-nowrap px-3 py-1.5 rounded-md text-sm font-medium transition-all ${tab === v
                     ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'}`}>
                   {l}{v && summary?.by_status?.[v] ? <span className="ml-1.5 text-xs text-slate-400">{summary.by_status[v]}</span> : null}
                 </button>
@@ -319,7 +319,29 @@ const PlatformCustomers = () => {
             <EmptyState icon={Building2} title="No customers here"
               description={tab === 'PENDING' ? 'No sign-ups are waiting for approval.' : 'Try another filter, or create a customer.'} />
           ) : (
-            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+            <>
+            {/* Phones: one card per customer. */}
+            <ul className="md:hidden space-y-3">
+              {rows.map((c) => (
+                <li key={c.id}>
+                  <button onClick={() => setOpenId(c.id)}
+                    className="w-full text-left rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800 active:bg-slate-50 dark:active:bg-slate-700/40">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900 dark:text-white truncate">{c.name}</div>
+                        <div className="text-xs text-slate-500 dark:text-slate-400">{typeLabel(c.account_type)}{c.signed_up ? ' · signed up online' : ''}</div>
+                      </div>
+                      <StatusBadge status={c.status} />
+                    </div>
+                    {c.admin && <div className="mt-2 text-sm text-slate-600 dark:text-slate-300 truncate">{c.admin.name} · {c.admin.email}</div>}
+                    <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {c.property_count}{c.property_limit ? ` of ${c.property_limit}` : ''} {hotelsLabel(c)} · since {fmtDate(c.created_on)}
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
                   <tr>
@@ -355,6 +377,7 @@ const PlatformCustomers = () => {
                 </tbody>
               </table>
             </div>
+            </>
           )}
         </main>
       </div>

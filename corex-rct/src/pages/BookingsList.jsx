@@ -66,6 +66,53 @@ const BookingsList = () => {
     finally { setActionLoadingId(null); }
   };
 
+  // Shared by the table (desktop) and the cards (phones).
+  const renderStatus = (b) => (
+    <>
+      <Badge tone={STATUS_TONE[b.status]}>{statusLabel(b)}</Badge>
+      {b.status !== 'CANCELLED' && (
+        Number(b.balance_due) <= 0
+          ? <div className="text-xs text-green-600 dark:text-green-400 mt-1">Paid in full</div>
+          : <div className="text-xs text-slate-400 mt-1">
+              {Number(b.amount_paid) > 0 ? `Paid ₹${Number(b.amount_paid).toLocaleString('en-IN')} · ` : ''}₹{Number(b.balance_due).toLocaleString('en-IN')} due
+            </div>
+      )}
+      {b.payment_method === 'AT_PROPERTY' && <div className="text-xs text-slate-400 mt-1">Pays at property</div>}
+      {b.cancel_request_status === 'PENDING' && (
+        <div className="mt-1"><Badge tone="amber">Cancel requested</Badge></div>
+      )}
+    </>
+  );
+
+  const ACT = 'p-2.5 md:p-1.5 rounded-lg disabled:opacity-50';  // bigger tap targets on phones
+  const renderActions = (b, busy) => (
+    <div className="flex flex-wrap items-center gap-1 md:gap-1.5">
+      {can('bookings.manage') && b.cancel_request_status === 'PENDING' && (
+        <button disabled={busy} onClick={() => setDecideFor(b)} title="Review cancellation request" aria-label="Review cancellation request" className={`${ACT} hover:bg-amber-500/10 text-amber-500`}><MessageSquareWarning className="w-4 h-4" /></button>
+      )}
+      {can('bookings.manage') && b.status === 'PENDING' && (
+        <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.confirmBooking)} title="Confirm" aria-label="Confirm" className={`${ACT} hover:bg-blue-500/10 text-blue-500`}><Check className="w-4 h-4" /></button>
+      )}
+      {can('bookings.manage') && b.status === 'CONFIRMED' && (
+        <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.checkInBooking)} title="Check In" aria-label="Check in" className={`${ACT} hover:bg-green-500/10 text-green-500`}><LogIn className="w-4 h-4" /></button>
+      )}
+      {can('bookings.manage') && b.status === 'CHECKED_IN' && (
+        <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.checkOutBooking)} title="Check Out" aria-label="Check out" className={`${ACT} hover:bg-slate-500/10 text-slate-500`}><LogOut className="w-4 h-4" /></button>
+      )}
+      {can('bookings.manage') && (b.status === 'PENDING' || b.status === 'CONFIRMED') && (
+        <button disabled={busy} onClick={() => window.confirm('Cancel this reservation?') && runAction(b.id, bookingAPI.cancelBooking)} title="Cancel" aria-label="Cancel reservation" className={`${ACT} hover:bg-red-500/10 text-red-500`}><Ban className="w-4 h-4" /></button>
+      )}
+      {can('payments.collect') && Number(b.balance_due) > 0 && ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.status) && (
+        <button disabled={busy} onClick={() => setPayFor(b)} title="Record payment" aria-label="Record payment" className={`${ACT} hover:bg-green-500/10 text-green-600`}><Wallet className="w-4 h-4" /></button>
+      )}
+      {can('payments.refund') && Number(b.amount_paid) > 0 && (
+        <button disabled={busy} onClick={() => window.confirm('Refund this payment and cancel the reservation?') && runAction(b.id, bookingAPI.refundBooking)} title="Refund" aria-label="Refund" className={`${ACT} hover:bg-amber-500/10 text-amber-500`}><RotateCcw className="w-4 h-4" /></button>
+      )}
+      <button onClick={() => downloadVoucher(b.id).catch(() => alert('Could not download the confirmation.'))} title="Download confirmation (PDF)" aria-label="Download confirmation" className={`${ACT} hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200`}><Download className="w-4 h-4" /></button>
+      <button onClick={() => setHistoryId(b.id)} title="History" aria-label="History" className={`${ACT} hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200`}><History className="w-4 h-4" /></button>
+    </div>
+  );
+
   if (loading) return <PageSpinner label="Loading bookings..." />;
 
   return (
@@ -74,15 +121,15 @@ const BookingsList = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
-          <div className="flex items-center justify-between mb-6">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <CalendarCheck className="w-6 h-6 text-green-500" /> Bookings
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {bookings.length} reservations</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {can('bookings.manage') && (
                 <button type="button" onClick={() => setWalkIn(true)} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-semibold">
                   <UserPlus className="w-4 h-4" /> Walk-in booking
@@ -118,7 +165,32 @@ const BookingsList = () => {
             {filtered.length === 0 ? (
               <EmptyState icon={CalendarCheck} title="No reservations" description="Bookings made by your customers will show up here." />
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/* Phones: one card per booking, same details and actions as the table. */}
+              <ul className="md:hidden divide-y divide-slate-100 dark:divide-slate-700/50">
+                {filtered.map(b => (
+                  <li key={b.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-slate-900 dark:text-white truncate">{b.customer_name}</div>
+                        {b.customer_phone
+                          ? <a href={`tel:${b.customer_phone}`} className="text-xs text-slate-500 dark:text-slate-300 hover:underline">{b.customer_phone}</a>
+                          : <div className="text-xs text-slate-400 truncate">{b.customer_email}</div>}
+                      </div>
+                      <PriceTag amount={b.total_amount} className="font-semibold text-slate-900 dark:text-white whitespace-nowrap" />
+                    </div>
+                    <div className="text-sm text-slate-600 dark:text-slate-300">
+                      {b.room_detail?.name}{b.property_name ? <span className="text-slate-400"> · {b.property_name}</span> : null}
+                    </div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
+                      {b.check_in} → {b.check_out} · {b.nights} night{b.nights !== 1 ? 's' : ''} · {b.guests} guest{b.guests !== 1 ? 's' : ''}
+                    </div>
+                    <div>{renderStatus(b)}</div>
+                    <div className="-ml-1.5">{renderActions(b, actionLoadingId === b.id)}</div>
+                  </li>
+                ))}
+              </ul>
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-200 dark:border-slate-700 text-left text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wide">
@@ -148,53 +220,15 @@ const BookingsList = () => {
                             <div className="text-xs text-slate-400">{b.nights} night{b.nights !== 1 ? 's' : ''} · {b.guests} guest{b.guests !== 1 ? 's' : ''}</div>
                           </td>
                           <td className="px-4 py-3"><PriceTag amount={b.total_amount} className="font-medium text-slate-900 dark:text-white" /></td>
-                          <td className="px-4 py-3">
-                            <Badge tone={STATUS_TONE[b.status]}>{statusLabel(b)}</Badge>
-                            {b.status !== 'CANCELLED' && (
-                              Number(b.balance_due) <= 0
-                                ? <div className="text-xs text-green-600 dark:text-green-400 mt-1">Paid in full</div>
-                                : <div className="text-xs text-slate-400 mt-1">
-                                    {Number(b.amount_paid) > 0 ? `Paid ₹${Number(b.amount_paid).toLocaleString('en-IN')} · ` : ''}₹{Number(b.balance_due).toLocaleString('en-IN')} due
-                                  </div>
-                            )}
-                            {b.payment_method === 'AT_PROPERTY' && <div className="text-xs text-slate-400 mt-1">Pays at property</div>}
-                            {b.cancel_request_status === 'PENDING' && (
-                              <div className="mt-1"><Badge tone="amber">Cancel requested</Badge></div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-1.5">
-                              {can('bookings.manage') && b.cancel_request_status === 'PENDING' && (
-                                <button disabled={busy} onClick={() => setDecideFor(b)} title="Review cancellation request" className="p-1.5 hover:bg-amber-500/10 text-amber-500 rounded-lg disabled:opacity-50"><MessageSquareWarning className="w-4 h-4" /></button>
-                              )}
-                              {can('bookings.manage') && b.status === 'PENDING' && (
-                                <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.confirmBooking)} title="Confirm" className="p-1.5 hover:bg-blue-500/10 text-blue-500 rounded-lg disabled:opacity-50"><Check className="w-4 h-4" /></button>
-                              )}
-                              {can('bookings.manage') && b.status === 'CONFIRMED' && (
-                                <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.checkInBooking)} title="Check In" className="p-1.5 hover:bg-green-500/10 text-green-500 rounded-lg disabled:opacity-50"><LogIn className="w-4 h-4" /></button>
-                              )}
-                              {can('bookings.manage') && b.status === 'CHECKED_IN' && (
-                                <button disabled={busy} onClick={() => runAction(b.id, bookingAPI.checkOutBooking)} title="Check Out" className="p-1.5 hover:bg-slate-500/10 text-slate-500 rounded-lg disabled:opacity-50"><LogOut className="w-4 h-4" /></button>
-                              )}
-                              {can('bookings.manage') && (b.status === 'PENDING' || b.status === 'CONFIRMED') && (
-                                <button disabled={busy} onClick={() => window.confirm('Cancel this reservation?') && runAction(b.id, bookingAPI.cancelBooking)} title="Cancel" className="p-1.5 hover:bg-red-500/10 text-red-500 rounded-lg disabled:opacity-50"><Ban className="w-4 h-4" /></button>
-                              )}
-                              {can('payments.collect') && Number(b.balance_due) > 0 && ['PENDING', 'CONFIRMED', 'CHECKED_IN', 'CHECKED_OUT'].includes(b.status) && (
-                                <button disabled={busy} onClick={() => setPayFor(b)} title="Record payment" className="p-1.5 hover:bg-green-500/10 text-green-600 rounded-lg disabled:opacity-50"><Wallet className="w-4 h-4" /></button>
-                              )}
-                              {can('payments.refund') && Number(b.amount_paid) > 0 && (
-                                <button disabled={busy} onClick={() => window.confirm('Refund this payment and cancel the reservation?') && runAction(b.id, bookingAPI.refundBooking)} title="Refund" className="p-1.5 hover:bg-amber-500/10 text-amber-500 rounded-lg disabled:opacity-50"><RotateCcw className="w-4 h-4" /></button>
-                              )}
-                              <button onClick={() => downloadVoucher(b.id).catch(() => alert('Could not download the confirmation.'))} title="Download confirmation (PDF)" className="p-1.5 hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"><Download className="w-4 h-4" /></button>
-                              <button onClick={() => setHistoryId(b.id)} title="History" className="p-1.5 hover:bg-slate-500/10 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"><History className="w-4 h-4" /></button>
-                            </div>
-                          </td>
+                          <td className="px-4 py-3">{renderStatus(b)}</td>
+                          <td className="px-4 py-3">{renderActions(b, busy)}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </Card>
         </div>

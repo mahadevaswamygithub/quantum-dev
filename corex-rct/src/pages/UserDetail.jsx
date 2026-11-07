@@ -602,7 +602,7 @@ const UserDetail = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole={currentUser.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-5">
             <button onClick={() => navigate(`${basePath}/users`)} className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1 transition-colors">
