@@ -172,6 +172,10 @@ services:
         # so the browser never needs to know the backend's real host.
         REACT_APP_API_URL: /api
     restart: always
+    volumes:
+      # nginx serves uploaded photos/logos from the shared volume (without S3,
+      # Django doesn't serve /media when DEBUG is off).
+      - media:/usr/share/nginx/media:ro
     ports:
       - "80:80"
     depends_on:
