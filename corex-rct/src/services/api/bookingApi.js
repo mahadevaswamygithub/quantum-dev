@@ -3,10 +3,29 @@ import api from './httpClient';
 export const bookingAPI = {
   // Customer self-registration for a specific org's booking site (AllowAny on the backend)
   registerCustomer: (data) => api.post('/bookings/customers/register/', data),
-  // Public lookup — {id, name, org_type} for an active ROOM_BOOKING STP org, no auth required
+  // Public booking-site browsing (no login): rooms with availability for ?check_in&check_out&guests&property
+  getPublicProperties: (orgId) => api.get(`/bookings/public/${orgId}/properties/`),
+  getPublicRooms: (orgId, params) => api.get(`/bookings/public/${orgId}/rooms/`, { params }),
+  getPublicRoom: (orgId, roomId, params) => api.get(`/bookings/public/${orgId}/rooms/${roomId}/`, { params }),
+  // Settings → Booking Site (staff read, STP admin write)
+  getBookingSettings: () => api.get('/bookings/settings/'),
+  updateBookingSettings: (data) => api.patch('/bookings/settings/', data),
+  // Public lookup - {id, name, org_type} for an active ROOM_BOOKING STP org, no auth required
   getPublicOrgInfo: (orgId) => api.get(`/tenants/organizations/${orgId}/public_info/`),
-  // Public list — every active ROOM_BOOKING STP org, for the shared /book landing page's org picker
-  getPublicOrgList: () => api.get('/tenants/organizations/public_list/'),
+  // Public list - every active ROOM_BOOKING STP org, for the shared /book landing page's org picker
+  getPublicOrgList: (params) => api.get('/tenants/organizations/public_list/', { params }),
+  askAssistant: (payload) => api.post('/bookings/assistant/', payload),
+  getWishlist: () => api.get('/bookings/wishlist/'),
+  addToWishlist: (orgId) => api.post('/bookings/wishlist/', { organization: orgId }),
+  removeFromWishlist: (orgId) => api.delete(`/bookings/wishlist/${orgId}/`),
+  getGuestNotifications: () => api.get('/bookings/me/notifications/'),
+  // Front office (staff)
+  getDashboard: () => api.get('/bookings/dashboard/'),
+  getRoomCalendar: (params) => api.get('/bookings/calendar/', { params }),
+  createWalkIn: (payload) => api.post('/bookings/walk_in/', payload),
+  getStaffNotifications: () => api.get('/bookings/staff/notifications/'),
+  exportBookingsCsv: (params) => api.get('/bookings/export/bookings.csv', { params, responseType: 'blob' }),
+  exportCollectionsCsv: (params) => api.get('/bookings/export/collections.csv', { params, responseType: 'blob' }),
 
   // Properties (buildings)
   getProperties: () => api.get('/bookings/properties/'),
@@ -30,12 +49,26 @@ export const bookingAPI = {
   deleteRoomImage: (roomId, imageId) => api.delete(`/bookings/rooms/${roomId}/images/${imageId}/`),
 
   // Reservations
-  getBookings: () => api.get('/bookings/reservations/'),
+  getBookings: (params) => api.get('/bookings/reservations/', { params }),
+  // Booking confirmation PDF (guest or staff)
+  downloadVoucher: (id) => api.get(`/bookings/reservations/${id}/voucher/`, { responseType: 'blob' }),
+  // Desk payments & daily collection (staff)
+  recordPayment: (id, data) => api.post(`/bookings/reservations/${id}/record_payment/`, data),
+  getCollections: (date) => api.get('/bookings/collections/', { params: date ? { date } : undefined }),
+  // Reviews
+  submitReview: (id, data) => api.post(`/bookings/reservations/${id}/review/`, data),
+  getStaffReviews: (params) => api.get('/bookings/reviews/', { params }),
+  replyToReview: (reviewId, reply) => api.post(`/bookings/reviews/${reviewId}/reply/`, { reply }),
+  getPublicReviews: (orgId) => api.get(`/bookings/public/${orgId}/reviews/`),
+  // Staff: guests who booked with this property (?search=)
+  getGuests: (params) => api.get('/bookings/guests/', { params }),
   getBooking: (id) => api.get(`/bookings/reservations/${id}/`),
   createBooking: (data) => api.post('/bookings/reservations/', data),
   createOrder: (id) => api.post(`/bookings/reservations/${id}/create_order/`),
   verifyPayment: (id, data) => api.post(`/bookings/reservations/${id}/verify_payment/`, data),
   cancelBooking: (id) => api.post(`/bookings/reservations/${id}/cancel/`),
+  requestCancellation: (id, reason) => api.post(`/bookings/reservations/${id}/request_cancellation/`, { reason }),
+  decideCancelRequest: (id, payload) => api.post(`/bookings/reservations/${id}/cancel_request_decision/`, payload),
   confirmBooking: (id) => api.post(`/bookings/reservations/${id}/confirm/`),
   checkInBooking: (id) => api.post(`/bookings/reservations/${id}/check_in/`),
   checkOutBooking: (id) => api.post(`/bookings/reservations/${id}/check_out/`),

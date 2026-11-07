@@ -1,8 +1,8 @@
 """
-corex/urls.py — TENANT SCHEMA urlconf, used for requests resolved to a
+corex/urls.py - TENANT SCHEMA urlconf, used for requests resolved to a
 tenant-specific domain (as opposed to corex/urls_public.py, used for the
 public schema). Reproduces the exact endpoint set the old flat
-apps/users/urls.py exposed here: auth + user CRUD + salary settings only —
+apps/users/urls.py exposed here: auth + user CRUD + salary settings only -
 attendance/salary-records/salary-advances/leaves were never wired into this
 urlconf and stay that way.
 """
@@ -10,6 +10,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+
+from apps.core.health import liveness, readiness
 from rest_framework.routers import DefaultRouter
 
 from apps.users.views import (
@@ -29,6 +31,8 @@ router.register(r'list', UserViewSet, basename='tenant-user')
 urlpatterns = [
     path('admin/', admin.site.urls),
 
+    path('api/health/', liveness, name='tenant-health-live'),
+    path('api/health/ready/', readiness, name='tenant-health-ready'),
     path('api/', include([
         path('users/', include([
             path('register/',        UserRegistrationView.as_view(), name='tenant-auth-register'),
@@ -39,7 +43,7 @@ urlpatterns = [
             path('change-password/', ChangePasswordView.as_view(),   name='tenant-auth-change-password'),
             path('salary/settings/', SalarySettingsView.as_view({'get': 'list', 'put': 'create'}), name='tenant-salary-settings'),
             path('', include(router.urls)),
-            path('me/', UserViewSet.as_view({'get': 'me', 'put': 'me'}), name='tenant-user-me'),
+            path('me/', UserViewSet.as_view({'get': 'me', 'put': 'me', 'delete': 'me'}), name='tenant-user-me'),
         ])),
         path('tenants/', include('apps.tenants.urls')),
     ])),

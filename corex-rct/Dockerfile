@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
-# React (CRA) frontend.
-#   dev  — `npm start` (webpack-dev-server), source bind-mounted, hot reload
+# React (Vite) frontend.
+#   dev  — `npm start` (vite dev server), source bind-mounted, hot reload
 #   prod — `npm run build`, output served by nginx (see nginx.conf), which
 #          also reverse-proxies /api and /media to the backend container —
 #          so the SPA can call relative "/api" and needs no baked-in host.
@@ -27,7 +27,8 @@ FROM base AS build
 COPY package.json package-lock.json ./
 RUN npm ci --legacy-peer-deps
 COPY . .
-# Baked into the JS bundle at build time (CRA can't read env at runtime).
+# Baked into the JS bundle at build time (Vite can't read env at runtime;
+# REACT_APP_* is exposed via envPrefix in vite.config.mjs).
 # Defaults to a relative path so nginx.conf's /api proxy handles it — override
 # with --build-arg REACT_APP_API_URL=https://your-host/api for a standalone
 # frontend deploy that talks to a differently-hosted backend.
@@ -37,6 +38,10 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS prod
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# A template: filled in at start-up from BACKEND_UPSTREAM / NGINX_LOCAL_RESOLVERS
+# and written to /etc/nginx/conf.d/default.conf (see the notes in nginx.conf).
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV BACKEND_UPSTREAM=backend:8000 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

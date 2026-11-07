@@ -1,7 +1,7 @@
 import React from 'react';
 
 /**
- * Small image-with-fallback tile — shows an uploaded picture (user profile
+ * Small image-with-fallback tile - shows an uploaded picture (user profile
  * picture or organization logo) when one exists, otherwise falls back to
  * initials or an icon on a background tile. Shared by Navbar, UsersList,
  * UserDetail, Settings (users, `rounded-full`) and OrganizationsList /
@@ -9,7 +9,7 @@ import React from 'react';
  *
  * Sizing/shape (`className`) and the fallback background/text colors (`bg`,
  * `textClass`) are passed in as full literal strings rather than built from
- * a prop like `w-${size}` — Tailwind only picks up class names it can see
+ * a prop like `w-${size}` - Tailwind only picks up class names it can see
  * as literal text at build time, and interpolating them would silently
  * produce untracked, unstyled classes.
  */

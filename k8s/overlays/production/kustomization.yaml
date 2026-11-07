@@ -1,0 +1,55 @@
+# Production: managed Postgres, S3 uploads, HTTPS ingress, autoscaling.
+#   1. Fill in secrets/backend.env and secrets/orchestrator.env (from the .example files)
+#   2. Edit the domain below, in ingress.yaml, and the image registry/tag
+#   3. k8s/deploy.sh k8s/overlays/production
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: corex
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - ingress.yaml
+  - autoscaling.yaml
+  - disruption-budgets.yaml
+
+images:
+  - name: corex-backend
+    newName: ghcr.io/mahadevaswamygithub/corex-backend
+    newTag: latest   # deploy an immutable tag: the git commit SHA built by .github/workflows/images.yml
+  - name: corex-frontend
+    newName: ghcr.io/mahadevaswamygithub/corex-frontend
+    newTag: latest
+  - name: corex-orchestrator
+    newName: ghcr.io/mahadevaswamygithub/corex-orchestrator
+    newTag: latest
+
+configMapGenerator:
+  - name: corex-config
+    behavior: merge
+    literals:
+      - ALLOWED_HOSTS=corex.example.com
+      # Must match the Ingress host: the tenant Domain row is created for it.
+      - PUBLIC_TENANT_DOMAIN=corex.example.com
+      - FRONTEND_URL=https://corex.example.com
+      - CORS_ALLOWED_ORIGINS=https://corex.example.com
+      - HTTPS_ENABLED=True
+      # Uploads in object storage, so every backend pod sees the same files.
+      - USE_S3=True
+      # Hotels sign up at /register and wait for approval in the platform console.
+      - ALLOW_PUBLIC_ORG_SIGNUP=False
+      - SIGNUP_PROPERTY_LIMIT=3
+      - SENTRY_ENVIRONMENT=production
+      - SENTRY_TRACES_SAMPLE_RATE=0.05
+
+# Real values live in secrets/*.env, which git ignores. Prefer a secret manager
+# for large customers (External Secrets Operator, Sealed Secrets, SOPS): create
+# Secrets with these names and delete this block.
+secretGenerator:
+  - name: corex-secrets
+    envs:
+      - secrets/backend.env
+  - name: orchestrator-secrets
+    envs:
+      - secrets/orchestrator.env

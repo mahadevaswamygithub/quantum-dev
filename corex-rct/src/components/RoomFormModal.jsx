@@ -130,7 +130,7 @@ const RoomFormModal = ({ isOpen, onClose, onSuccess, room }) => {
                 <input
                   type="text" value={amenityInput} onChange={e => setAmenityInput(e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addAmenity(); } }}
-                  placeholder="e.g. WiFi — press Enter to add" className={inputCls}
+                  placeholder="e.g. WiFi - press Enter to add" className={inputCls}
                 />
                 <button type="button" onClick={addAmenity} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-white text-sm font-medium rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600">Add</button>
               </div>

@@ -1,5 +1,5 @@
 """
-corex/urls_public.py  (public schema — all requests via localhost)
+corex/urls_public.py  (public schema - all requests via localhost)
 
 Each domain owns its own router/urls module (apps/users/urls/<domain>.py,
 apps/tenants/urls.py); this file only wires prefixes to them.
@@ -20,9 +20,13 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 
+from apps.core.health import liveness, readiness
+
 urlpatterns = [
     path("admin/", admin.site.urls),
 
+    path("api/health/", liveness, name="health-live"),
+    path("api/health/ready/", readiness, name="health-ready"),
     path("api/", include([
         path("chat/",        include("chat.urls")),
         path("auth/",        include("apps.users.urls.auth")),

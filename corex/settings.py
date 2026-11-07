@@ -11,7 +11,6 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
-import os
 from decouple import config, Csv
 from corsheaders.defaults import default_headers
 
@@ -32,6 +31,11 @@ SECRET_KEY = config(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=True, cast=bool)
 
+_PLACEHOLDER_KEY_PREFIXES = ('django-insecure-', 'change-me')
+if not DEBUG and (not SECRET_KEY or SECRET_KEY.startswith(_PLACEHOLDER_KEY_PREFIXES)):
+    from django.core.exceptions import ImproperlyConfigured
+    raise ImproperlyConfigured("SECRET_KEY must be configured with a strong non-default secret in production!")
+
 ALLOWED_HOSTS = config(
     'ALLOWED_HOSTS',
     default='.ngrok-free.dev,localhost,127.0.0.1',
@@ -39,7 +43,7 @@ ALLOWED_HOSTS = config(
 )
 # "backend" is the Docker Compose service name the orchestrator's
 # server-to-server tool calls hit (DJANGO_API_BASE_URL=http://backend:8000)
-# — always allow it regardless of how ALLOWED_HOSTS above is customized, so
+# - always allow it regardless of how ALLOWED_HOSTS above is customized, so
 # nobody has to remember to add it in .env.prod. Not a meaningful attack
 # surface: it's only resolvable inside the compose network, and there's
 # already a Domain row (see bootstrap_public_tenant) routing it to the
@@ -49,13 +53,23 @@ if 'backend' not in ALLOWED_HOSTS:
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
-# Razorpay (apps.bookings payment flow) — get TEST-mode keys from
+# Razorpay (apps.bookings payment flow) - get TEST-mode keys from
 # https://dashboard.razorpay.com/app/keys after enabling test mode.
 # Left blank by default; views.py returns a clean 503 rather than crashing
 # when these aren't configured.
 RAZORPAY_KEY_ID = config('RAZORPAY_KEY_ID', default='')
 RAZORPAY_KEY_SECRET = config('RAZORPAY_KEY_SECRET', default='')
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# Secret set on the Razorpay dashboard webhook (Settings -> Webhooks); the
+# webhook endpoint answers 503 until this is configured.
+RAZORPAY_WEBHOOK_SECRET = config('RAZORPAY_WEBHOOK_SECRET', default='')
+# How long an unpaid reservation holds its room before others can book it.
+BOOKING_PAYMENT_WINDOW_MINUTES = config('BOOKING_PAYMENT_WINDOW_MINUTES', default=15, cast=int)
+# Check-in times and cancellation deadlines are wall-clock times at the property.
+PROPERTY_TIMEZONE = config('PROPERTY_TIMEZONE', default='Asia/Kolkata')
+# Booking emails to guests are sent after commit on a background thread; False = inline (tests).
+BOOKING_EMAILS_ASYNC = config('BOOKING_EMAILS_ASYNC', default=True, cast=bool)
+# Optional Fernet key for encrypting stored secrets (org SMTP passwords); derived from SECRET_KEY if unset.
+FIELD_ENCRYPTION_KEY = config('FIELD_ENCRYPTION_KEY', default='')
 # Application definition
 
 
@@ -67,6 +81,8 @@ SHARED_APPS = [
     'django.contrib.messages',
     'django.contrib.admin',
     'rest_framework_simplejwt',
+    # Lets logout / password change actually revoke refresh tokens.
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'django.contrib.staticfiles',
 
@@ -87,12 +103,12 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 ]
 
 MIDDLEWARE = [
+    'apps.core.observability.RequestIDMiddleware',
     'django_tenants.middleware.main.TenantMainMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -130,7 +146,7 @@ DATABASES = {
         'ENGINE': 'django_tenants.postgresql_backend',
         'NAME': config('DB_NAME', default='corex_db'),
         'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='aEDq:c7y'),
+        'PASSWORD': config('DB_PASSWORD', default=''),  # set in .env - never commit a real password
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
     }
@@ -150,31 +166,96 @@ USERNAME_FIELD = "email"
 # REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # JWT + the organization's account status (suspended/closed/deactivated → signed out).
+        'apps.core.authentication.OrgStatusJWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    # How many reverse proxies (nginx, load balancer) sit in front of Django.
+    # Throttles use it to find the real client IP in X-Forwarded-For; 0 = use
+    # the direct connection (dev). Production behind nginx: TRUSTED_PROXY_COUNT=1.
+    'NUM_PROXIES': config('TRUSTED_PROXY_COUNT', default=0, cast=int),
+    # Per-IP limits on the anonymous auth endpoints (views set throttle_scope).
+    # Per-account login lockout is separate: apps.core.login_guard.
+    'DEFAULT_THROTTLE_RATES': {
+        'login': config('THROTTLE_LOGIN', default='20/min'),
+        'password_reset': config('THROTTLE_PASSWORD_RESET', default='5/hour'),
+        'signup': config('THROTTLE_SIGNUP', default='10/hour'),
+        'impersonation': config('THROTTLE_IMPERSONATION', default='30/hour'),
+        'assistant': config('THROTTLE_ASSISTANT', default='30/min'),
+    },
 }
+
+# Security headers (always on).
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+
+# HTTPS (production). Turn on once the site is served over https (TLS ends at
+# nginx or a load balancer that sets X-Forwarded-Proto): redirects http→https,
+# marks cookies Secure, and tells browsers to only ever use https (HSTS).
+HTTPS_ENABLED = config('HTTPS_ENABLED', default=False, cast=bool)
+# Internal health checks (Docker, Kubernetes probes) speak plain http. A 301 here
+# would make the readiness probe pass without checking anything (3xx = success).
+SECURE_REDIRECT_EXEMPT = [r'^api/health/']
+if HTTPS_ENABLED:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+
+# Public "create your organization" sign-up (/register). Off by default:
+# organizations are normally created by an MSP admin.
+ALLOW_PUBLIC_ORG_SIGNUP = config('ALLOW_PUBLIC_ORG_SIGNUP', default=False, cast=bool)
+# Hotels a self-signed-up customer may have until the platform owner raises it
+# (MSP: client organizations; single business: properties). Empty = no limit.
+SIGNUP_PROPERTY_LIMIT = config('SIGNUP_PROPERTY_LIMIT', default='3', cast=lambda v: int(v) if str(v).strip() else None)
+
+# Login lockout: this many failed attempts for one email locks it for LOGIN_LOCKOUT_MINUTES.
+# Roles that must use two-step verification (others may turn it on themselves).
+TWO_FACTOR_REQUIRED_ROLES = config('TWO_FACTOR_REQUIRED_ROLES', default='MSP_ADMIN,PLATFORM_ADMIN', cast=Csv())
+LOGIN_MAX_FAILURES = config('LOGIN_MAX_FAILURES', default=5, cast=int)
+LOGIN_LOCKOUT_MINUTES = config('LOGIN_LOCKOUT_MINUTES', default=15, cast=int)
+
+# Cache (login lockout counters, throttles). In-memory by default; set
+# CACHE_USE_REDIS=True in production so every server process shares the counters.
+if config('CACHE_USE_REDIS', default=False, cast=bool):
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+                          'LOCATION': config('REDIS_URL', default='redis://localhost:6379/0')}}
+else:
+    CACHES = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache', 'LOCATION': 'corex'}}
 
 # JWT Settings
 from datetime import timedelta
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(hours=5),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    # Short-lived access tokens; the app refreshes them silently.
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=config('JWT_ACCESS_MINUTES', default=15, cast=int)),
+    # How long someone stays signed in without using the app.
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=config('JWT_REFRESH_DAYS', default=7, cast=int)),
+    # Every refresh issues a new refresh token and retires the old one, so a
+    # stolen refresh token stops working as soon as the real user refreshes.
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 
 # CORS Settings
-CORS_ALLOW_ALL_ORIGINS = True
+# Only the web app's own address(es) may call the API from a browser. In
+# production nginx serves the app and API from one origin, so this barely matters
+# there; set CORS_ALLOWED_ORIGINS if the frontend lives on a different domain.
+CORS_ALLOW_ALL_ORIGINS = config('CORS_ALLOW_ALL_ORIGINS', default=False, cast=bool)
 CORS_ALLOW_CREDENTIALS = True
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://127.0.0.1:8002",
-    # "https://*.ngrok-free.dev"
-]
+CORS_ALLOWED_ORIGINS = config(
+    'CORS_ALLOWED_ORIGINS',
+    default='http://localhost:3000,http://127.0.0.1:3000',
+    cast=Csv(),
+)
+# Dev convenience: frontends exposed through an ngrok tunnel.
+CORS_ALLOWED_ORIGIN_REGEXES = [r'^https://[\w-]+\.ngrok-free\.(dev|app)$'] if DEBUG else []
 
 CORS_ALLOW_HEADERS = list(default_headers) + [
     'ngrok-skip-browser-warning',
@@ -191,6 +272,22 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+# Publishing must fail fast when Redis is down so web requests never hang
+# (booking emails then fall back to an in-process send).
+CELERY_BROKER_CONNECTION_TIMEOUT = 2
+CELERY_BROKER_TRANSPORT_OPTIONS = {'socket_connect_timeout': 2, 'socket_timeout': 5, 'max_retries': 1}
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_TASK_ACKS_LATE = True            # a task killed mid-run is redelivered
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+# Booking emails through Celery (retries, survive restarts). Needs a worker.
+BOOKING_EMAILS_VIA_CELERY = config('BOOKING_EMAILS_VIA_CELERY', default=False, cast=bool)
+# Periodic jobs - run by `celery -A corex beat` (see README → Redis + Celery).
+CELERY_BEAT_SCHEDULE = {
+    'expire-pending-bookings': {
+        'task': 'apps.bookings.tasks.expire_pending_bookings',
+        'schedule': 300.0,  # every 5 minutes
+    },
+}
 
 # Email Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -238,27 +335,50 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
 STATIC_URL = 'static/'
-# Only used by `collectstatic` (production/Docker) — WhiteNoise serves from here.
+# Only used by `collectstatic` (production/Docker) - WhiteNoise serves from here.
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {
     # Defining STORAGES at all (Django 5.1+) replaces the old
-    # DEFAULT_FILE_STORAGE/STATICFILES_STORAGE settings entirely — "default"
+    # DEFAULT_FILE_STORAGE/STATICFILES_STORAGE settings entirely - "default"
     # must be listed explicitly or FileField/ImageField uploads (profile
     # pictures, room images, documents) break with InvalidStorageError.
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
+    },  # replaced by S3 below when USE_S3=True
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
 }
 
-# Media (user uploads — profile pictures, org logos, room images, documents).
-# MEDIA_ROOT = BASE_DIR so the existing upload_to paths (e.g. 'user_documents/',
-# 'room_images/') keep resolving to the same folders that already exist at
-# the project root — nothing needs to move.
+# Media (user uploads - profile pictures, org logos/covers, room images,
+# employee documents). Kept in one git-ignored folder, outside the source tree,
+# so uploads never get committed. upload_to paths ('room_images/', ...) are
+# relative to this folder, so stored file names didn't change when it moved.
 MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR
+MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
+
+# Production: keep uploads in S3-compatible object storage so every server
+# sees the same files and they survive a server being replaced. Works with
+# AWS S3, Cloudflare R2, Wasabi, MinIO (set S3_ENDPOINT_URL for non-AWS).
+USE_S3 = config('USE_S3', default=False, cast=bool)
+if USE_S3:
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'bucket_name': config('S3_BUCKET'),
+            'region_name': config('S3_REGION', default=None) or None,
+            'endpoint_url': config('S3_ENDPOINT_URL', default=None) or None,
+            'access_key': config('S3_ACCESS_KEY_ID', default=None) or None,   # or an IAM role
+            'secret_key': config('S3_SECRET_ACCESS_KEY', default=None) or None,
+            'custom_domain': config('S3_CUSTOM_DOMAIN', default=None) or None,  # e.g. a CDN in front
+            'location': config('S3_PREFIX', default='media'),
+            'file_overwrite': False,   # two uploads with the same name never clobber each other
+            'default_acl': None,       # bucket policy decides
+            # Photos and logos are public; signed URLs (True) for a private bucket.
+            'querystring_auth': config('S3_SIGNED_URLS', default=False, cast=bool),
+            'object_parameters': {'CacheControl': 'public, max-age=604800'},
+        },
+    }
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -266,12 +386,21 @@ MEDIA_ROOT = BASE_DIR
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# Every line carries the request ID (see apps.core.observability).
+# LOG_FORMAT=json in production for log shippers (CloudWatch, Loki, ELK…).
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {'request_id': {'()': 'apps.core.observability.RequestIDFilter'}},
+    'formatters': {
+        'plain': {'format': '%(asctime)s %(levelname)s [%(request_id)s] %(name)s: %(message)s'},
+        'json': {'()': 'apps.core.observability.JSONFormatter'},
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'filters': ['request_id'],
+            'formatter': config('LOG_FORMAT', default='plain'),
         },
     },
     'root': {
@@ -289,3 +418,22 @@ LOGGING = {
 
 
 LLM_ORCHESTRATOR_URL = config('LLM_ORCHESTRATOR_URL', default='http://localhost:8002')
+
+# Guest chat assistant on the booking site. Built-in answers always work;
+# questions it doesn't recognise go to a private Ollama model (no tools, only
+# public facts). Set GUEST_ASSISTANT_LLM=False to use the built-in helper only.
+GUEST_ASSISTANT_LLM = config('GUEST_ASSISTANT_LLM', default=True, cast=bool)
+GUEST_ASSISTANT_LLM_URL = config('GUEST_ASSISTANT_LLM_URL', default='http://localhost:11434')
+GUEST_ASSISTANT_MODEL = config('GUEST_ASSISTANT_MODEL', default='llama3.2')
+GUEST_ASSISTANT_LLM_TIMEOUT = config('GUEST_ASSISTANT_LLM_TIMEOUT', default=25, cast=int)
+
+# Error tracking (optional). Errors arrive tagged with the request ID.
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=config('SENTRY_ENVIRONMENT', default='production' if not DEBUG else 'development'),
+        traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.05, cast=float),
+        send_default_pii=False,   # no guest emails/IPs in error reports
+    )

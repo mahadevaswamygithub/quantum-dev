@@ -1,25 +1,37 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
-  Building2, Users, Home, Settings,
-  ChevronLeft, ChevronRightIcon,
-  Briefcase, DollarSign, Clock, CalendarDays,
-  Shield, UserCircle, History, BedDouble, CalendarCheck
+  Building2, Users, Home, Settings, ChevronLeft, ChevronRightIcon, Briefcase, DollarSign, Clock, CalendarDays, Shield, UserCircle, History, BedDouble, CalendarCheck, CalendarRange, Wallet, Star, X,
 } from 'lucide-react';
+import { mobileNav, useMobileNavOpen } from '../hooks/useMobileNav';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 
 const formatRole = (role = '') =>
   role.split('_').map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(' ');
 
-const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollapse }) => {
+const Sidebar = ({ userRole, collapsed: collapsedOnDesktop, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  // Pulled from context rather than threaded in as a prop — Sidebar is
+  // Phones: the menu is a drawer opened by the ☰ button in the Navbar. It
+  // always shows labels (the desktop "collapsed" icon rail doesn't apply).
+  const drawerOpen = useMobileNavOpen();
+  const collapsed = collapsedOnDesktop && !drawerOpen;
+  useEffect(() => { mobileNav.close(); }, [location.pathname]);
+  useEffect(() => {
+    if (!drawerOpen) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') mobileNav.close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [drawerOpen]);
+  // Pulled from context rather than threaded in as a prop - Sidebar is
   // only ever rendered inside an authenticated page (already inside
   // AuthProvider), so this avoids touching every call site just to pass
   // one more field needed solely for vertical-specific nav visibility.
   const { user } = useAuth();
   const isRoomBookingOrg = user?.org_type === 'ROOM_BOOKING';
+  // Staff see only what their role allows (apps.core.access → user.permissions).
+  const { can, canAny, isAdmin: isOrgAdmin } = usePermissions();
 
   // Dashboard's `to` is basePath itself (e.g. "/msp"), which is a path
   // prefix of every other nav item ("/msp/organizations", "/msp/users", …).
@@ -33,11 +45,8 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
   const isMSP = userRole === 'MSP_ADMIN' || userRole === 'MSP_USER';
   const isSTP = userRole === 'STP_ADMIN' || userRole === 'STP_USER';
   const isEmployee = userRole === 'EMPLOYEE';
-  // Activity log is an audit feature — same admin-only visibility the
-  // backend enforces (ActivityLogViewSet.get_queryset), so non-admins never
-  // see a nav link to a page that would just come back empty for them.
-  const isAdmin = userRole === 'MSP_ADMIN' || userRole === 'STP_ADMIN';
-  const basePath = isMSP ? '/msp' : isSTP ? '/stp' : '/employee';
+  const isPlatform = userRole === 'PLATFORM_ADMIN';
+  const basePath = isPlatform ? '/platform' : isMSP ? '/msp' : isSTP ? '/stp' : '/employee';
 
   const Tooltip = ({ label }) => (
     <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 opacity-0 shadow-lg transition-opacity group-hover:opacity-100 dark:border-slate-700 dark:bg-slate-900 dark:text-white">
@@ -68,49 +77,67 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
   };
 
   return (
+    <>
+    {/* Phones: dim the page behind the open drawer; tapping it closes the menu. */}
+    {drawerOpen && (
+      <div className="fixed inset-0 z-40 bg-slate-900/50 md:hidden" onClick={mobileNav.close} aria-hidden="true" />
+    )}
     <div
-      className={`flex h-full flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800 ${
-        collapsed ? 'w-16' : 'w-64'
-      }`}
+      className={`flex h-full flex-shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 ease-in-out dark:border-slate-700 dark:bg-slate-800
+        fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] shadow-2xl ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}
+        md:static md:z-auto md:max-w-none md:translate-x-0 md:shadow-none ${collapsed ? 'md:w-16' : 'md:w-64'}`}
     >
-      {/* Collapse Toggle */}
+      {/* Collapse toggle (desktop) / close (phone drawer) */}
       <div className={`flex ${collapsed ? 'justify-center' : 'justify-end'} border-b border-slate-100 p-2 dark:border-slate-700/50`}>
         <button
           onClick={onToggleCollapse}
-          className="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
+          className="hidden md:block rounded-lg p-1.5 text-slate-400 transition-all hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-white"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRightIcon className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+        </button>
+        <button
+          onClick={mobileNav.close}
+          className="md:hidden rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-900 dark:hover:bg-slate-700 dark:hover:text-white"
+          aria-label="Close menu"
+        >
+          <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Nav Items */}
       <div className="flex-1 space-y-1 overflow-y-auto p-2">
 
-        {/* Dashboard */}
-        <NavItem to={basePath} icon={Home} label="Dashboard" />
+        {/* Dashboard (the platform owner's home is the customer list) */}
+        {isPlatform
+          ? <NavItem to={basePath} icon={Building2} label="Customers" />
+          : <NavItem to={basePath} icon={Home} label="Dashboard" />}
 
         {/* MSP: Organizations */}
-        {isMSP && (
+        {isMSP && can('organizations.view') && (
           <NavItem to={`${basePath}/organizations`} icon={Building2} label="Organizations" />
         )}
 
         {/* Users (MSP + STP) */}
-        {!isEmployee && (
+        {!isEmployee && !isPlatform && can('users.view') && (
           <NavItem to={`${basePath}/users`} icon={Users} label="Users" />
         )}
 
-        {/* Activity Log (MSP/STP admins only) */}
-        {isAdmin && (
+        {/* Activity Log */}
+        {can('activity.view') && (
           <NavItem to={`${basePath}/activity`} icon={History} label="Activity Log" />
         )}
 
-        {/* Room Booking vertical — STP staff of a ROOM_BOOKING org only */}
+        {/* Room Booking vertical - STP staff of a ROOM_BOOKING org only */}
         {isSTP && isRoomBookingOrg && (
           <>
-            <NavItem to={`${basePath}/properties`} icon={Building2} label="Properties" />
-            <NavItem to={`${basePath}/rooms`} icon={BedDouble} label="Rooms" />
-            <NavItem to={`${basePath}/bookings`} icon={CalendarCheck} label="Bookings" />
+            {can('rooms.view') && <NavItem to={`${basePath}/properties`} icon={Building2} label="Properties" />}
+            {can('rooms.view') && <NavItem to={`${basePath}/rooms`} icon={BedDouble} label="Rooms" />}
+            {can('bookings.view') && <NavItem to={`${basePath}/bookings`} icon={CalendarCheck} label="Bookings" />}
+            {can('bookings.view') && <NavItem to={`${basePath}/calendar`} icon={CalendarRange} label="Room calendar" />}
+            {can('guests.view') && <NavItem to={`${basePath}/guests`} icon={UserCircle} label="Guests" />}
+            {can('payments.report') && <NavItem to={`${basePath}/collections`} icon={Wallet} label="Collections" />}
+            {can('reviews.view') && <NavItem to={`${basePath}/reviews`} icon={Star} label="Reviews" />}
           </>
         )}
 
@@ -125,8 +152,10 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
           </>
         )}
 
-        {/* Settings */}
-        <NavItem to={`${basePath}/settings`} icon={Settings} label="Settings" />
+        {/* Settings - organization-level; only roles with something to manage */}
+        {(isOrgAdmin || canAny('settings.manage', 'platform.view', 'users.view') || (isSTP && isRoomBookingOrg && can('bookings.view'))) && (
+          <NavItem to={`${basePath}/settings`} icon={Settings} label="Settings" />
+        )}
       </div>
 
       {/* Role Badge at bottom */}
@@ -141,6 +170,7 @@ const Sidebar = ({ userRole, tenants = [], users = [], collapsed, onToggleCollap
         </div>
       </div>
     </div>
+    </>
   );
 };
 

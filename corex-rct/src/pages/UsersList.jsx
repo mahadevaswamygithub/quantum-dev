@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
+import { usePermissions } from '../hooks/usePermissions';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import Pagination from '../components/common/Pagination';
@@ -9,7 +12,7 @@ import { useAuth } from '../context/AuthContext';
 import { userAPI, tenantAPI } from '../services/api';
 import {
   Users, UserPlus, Edit, Trash2, ToggleLeft, ToggleRight,
-  Download, FileText, Shield
+  Download, FileText, Shield, Mail, ShieldOff
 } from 'lucide-react';
 import { AddUserModal, EditUserModal, DeleteUserModal, ROLE_OPTIONS } from '../components/UserModals';
 import BulkActions from '../components/BulkActions';
@@ -19,6 +22,7 @@ import Avatar from '../components/common/Avatar';
 const PAGE_SIZE = 15;
 
 const UsersList = () => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [tenants, setTenants] = useState([]);
@@ -55,6 +59,7 @@ const UsersList = () => {
       setLoading(false);
     }
   }, []);
+  const live = useAutoRefresh(fetchData);
 
   useEffect(() => {
     fetchData();
@@ -63,9 +68,9 @@ const UsersList = () => {
   const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
 
   // userAPI.getUsers() intentionally returns MSP staff + every managed
-  // sub-org's staff flattened together (UserViewSet.get_queryset — needed
+  // sub-org's staff flattened together (UserViewSet.get_queryset - needed
   // for bulk ops/exports/stats elsewhere). This page is "manage MY
-  // organization's people" though, so it defaults to just that org — a
+  // organization's people" though, so it defaults to just that org - a
   // sub-org's staff is managed from that org's own detail page instead
   // (Organizations → org → View Users).
   const ownOrgUsers = isMSP
@@ -73,7 +78,7 @@ const UsersList = () => {
     : users;
 
   // tenantAPI.getTenants() deliberately excludes the MSP's own org (it
-  // backs the Organizations page, which lists *sub*-orgs only — see
+  // backs the Organizations page, which lists *sub*-orgs only - see
   // OrganizationViewSet.get_queryset). The Add/Edit User modals need the
   // MSP's own org as a pickable target too, so it's synthesized here from
   // the logged-in user's own profile fields and prepended.
@@ -102,7 +107,7 @@ const UsersList = () => {
     return true;
   });
 
-  // Filters reshuffle the result set — back to page 1 so pagination doesn't
+  // Filters reshuffle the result set - back to page 1 so pagination doesn't
   // land on an out-of-range/empty page.
   useEffect(() => { setPage(1); }, [searchTerm, advancedFilters]);
 
@@ -196,7 +201,7 @@ const UsersList = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (error) {
+    } catch {
       alert('Failed to export CSV');
     }
   };
@@ -211,7 +216,7 @@ const UsersList = () => {
       document.body.appendChild(link);
       link.click();
       link.remove();
-    } catch (error) {
+    } catch {
       alert('Failed to export JSON');
     }
   };
@@ -240,6 +245,26 @@ const UsersList = () => {
       alert(error.response?.data?.error || 'Failed to delete user');
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleReset2fa = async (u) => {
+    if (!window.confirm(`Reset two-step verification for ${u.first_name} ${u.last_name}? They'll be signed out and must set it up again (if required) at next sign-in.`)) return;
+    try {
+      const { data } = await userAPI.reset2fa(u.id);
+      alert(data.message);
+      await fetchData();
+    } catch (error) {
+      alert(error.response?.data?.error || error.response?.data?.detail || 'Failed to reset two-step verification');
+    }
+  };
+
+  const handleResendInvite = async (u) => {
+    try {
+      const { data } = await userAPI.resendInvite(u.id);
+      alert(data.message || `Invite sent to ${u.email}.`);
+    } catch (error) {
+      alert(error.response?.data?.error || 'Failed to resend the invite');
     }
   };
 
@@ -274,20 +299,23 @@ const UsersList = () => {
           users={ownOrgUsers}
         />
 
-        <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
-          {/* Static header + toolbar — only the table below scrolls.
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden min-h-0 flex flex-col">
+          {/* Static header + toolbar - only the table below scrolls.
               Same structure/sizing as every other listing page (Organizations,
               Rooms, Properties, Activity Log): title+icon+description on the
               left, primary Add action on the right, search/filters below. */}
           <div className="flex-shrink-0">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Users className="w-6 h-6 text-green-500" /> Users Management
                 </h1>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Manage all users in your organization</p>
               </div>
-              <Button icon={UserPlus} onClick={() => setShowAddModal(true)}>Add User</Button>
+              <div className="flex items-center gap-3">
+                <Button icon={UserPlus} hidden={!can('users.manage')} onClick={() => setShowAddModal(true)}>Add User</Button>
+                <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+              </div>
             </div>
 
             {/* Search, Filters */}
@@ -297,7 +325,7 @@ const UsersList = () => {
                 onClearFilters={() => setAdvancedFilters(null)}
                 filterOptions={{
                   showRole: true,
-                  // No "Organization" filter here — this page is scoped
+                  // No "Organization" filter here - this page is scoped
                   // to your own org's users by default (see ownOrgUsers
                   // above), so there's nothing else left to filter by.
                   // Sub-org staff are managed from that org's own page.
@@ -315,7 +343,7 @@ const UsersList = () => {
             </div>
           </div>
 
-          {/* Users Table — scrollable. overflow-auto lives directly on this
+          {/* Users Table - scrollable. overflow-auto lives directly on this
               card (not a nested overflow-x-auto wrapper) so the sticky thead
               below has one real scrolling ancestor to stick within. */}
           <div className="flex-1 overflow-auto min-h-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
@@ -380,6 +408,11 @@ const UsersList = () => {
                             <span className="text-slate-900 dark:text-white font-medium">
                               {u.first_name} {u.last_name}
                             </span>
+                            {u.invite_pending && (
+                              <span title="Hasn't set a password yet" className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                Invite pending
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-slate-500 dark:text-slate-400">{u.email}</td>
@@ -401,6 +434,23 @@ const UsersList = () => {
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-2">
                             <button
+                              hidden={!can('users.manage') || !u.two_factor_enabled || u.id === user.id}
+                              onClick={() => handleReset2fa(u)}
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                              title="Reset two-step verification (lost phone)"
+                            >
+                              <ShieldOff className="w-4 h-4 text-purple-500" />
+                            </button>
+                            <button
+                              hidden={!can('users.manage') || !u.invite_pending}
+                              onClick={() => handleResendInvite(u)}
+                              className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                              title="Resend invite email"
+                            >
+                              <Mail className="w-4 h-4 text-amber-500" />
+                            </button>
+                            <button
+                              hidden={!can('users.manage')}
                               onClick={() => handleToggleStatus(u.id)}
                               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
                               title={u.is_active ? 'Deactivate' : 'Activate'}
@@ -412,6 +462,7 @@ const UsersList = () => {
                               )}
                             </button>
                             <button
+                              hidden={!can('users.manage')}
                               onClick={() => handleEdit(u)}
                               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
                               title="Edit"
@@ -419,6 +470,7 @@ const UsersList = () => {
                               <Edit className="w-4 h-4 text-blue-400" />
                             </button>
                             <button
+                              hidden={!can('users.manage')}
                               onClick={() => handleDelete(u)}
                               className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-600 rounded-lg transition-colors"
                               title="Delete"
@@ -447,6 +499,7 @@ const UsersList = () => {
       </div>
 
       {/* Bulk Actions Bar */}
+      {can('users.manage') && (
       <BulkActions
         selectedCount={selectedUsers.length}
         onActivate={handleBulkActivate}
@@ -459,6 +512,7 @@ const UsersList = () => {
         }}
         showRoleChange={true}
       />
+      )}
 
       {/* Modals */}
       <AddUserModal
@@ -510,7 +564,7 @@ const UsersList = () => {
 // Role Change Modal Component
 const RoleChangeModal = ({ isOpen, onClose, onConfirm, selectedCount, currentOrgType = 'STP' }) => {
   // Bulk role changes only offer roles that fit the acting admin's own
-  // scope (an STP admin's selection is always STP-org users) — the same
+  // scope (an STP admin's selection is always STP-org users) - the same
   // MSP/STP mismatch guard as Add/Edit User, see UserModals.jsx.
   const roleOptions = ROLE_OPTIONS[currentOrgType] || ROLE_OPTIONS.STP;
   const [newRole, setNewRole] = useState(roleOptions[0].value);

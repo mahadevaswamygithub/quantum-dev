@@ -55,7 +55,7 @@ export const ThemeProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     mode,              // 'light' | 'dark' | 'system'
-    theme: resolvedTheme, // 'light' | 'dark' — the theme actually in effect
+    theme: resolvedTheme, // 'light' | 'dark' - the theme actually in effect
     setMode,
     cycleMode,
   }), [mode, resolvedTheme, setMode, cycleMode]);

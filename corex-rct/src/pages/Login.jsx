@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { authAPI } from '../services/api';
+import TwoFactorStep from '../components/auth/TwoFactorStep';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
@@ -6,11 +8,16 @@ import ForgotPasswordModal from '../components/ForgotPasswordModal';
 import AuthBackground from '../components/AuthBackground';
 
 const Login = () => {
+  const [signupOpen, setSignupOpen] = useState(false);
+  useEffect(() => {
+    authAPI.signupStatus().then(({ data }) => setSignupOpen(!!data.enabled)).catch(() => setSignupOpen(false));
+  }, []);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [mfa, setMfa] = useState(null); // password OK, two-step code (or setup) pending
 
   const { login, getPortalRoute } = useAuth();
   const navigate = useNavigate();
@@ -23,7 +30,9 @@ const Login = () => {
     const result = await login(email, password);
 
     if (result.success) {
-      navigate(getPortalRoute());
+      navigate(getPortalRoute(result.user), { replace: true });
+    } else if (result.mfa) {
+      setMfa(result.mfa);
     } else {
       setError(result.error);
     }
@@ -36,7 +45,7 @@ const Login = () => {
       <AuthBackground>
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div className="inline-block w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
               <span className="text-2xl font-bold text-white">CX</span>
             </div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Welcome Back</h1>
@@ -51,6 +60,9 @@ const Login = () => {
               </div>
             )}
 
+            {mfa ? (
+              <TwoFactorStep mfa={mfa} onSignedIn={(u) => navigate(getPortalRoute(u), { replace: true })} onCancel={() => { setMfa(null); setPassword(''); }} />
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-2">
@@ -110,15 +122,16 @@ const Login = () => {
                 )}
               </button>
             </form>
+            )}
 
-            <div className="mt-6 text-center">
+            <div className="mt-6 text-center" hidden={!signupOpen}>
               <p className="text-slate-500 dark:text-slate-400">
-                Don't have an account?{' '}
+                Run a hotel?{' '}
                 <Link
                   to="/register"
                   className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-semibold"
                 >
-                  Register here
+                  List it on CoreX
                 </Link>
               </p>
             </div>

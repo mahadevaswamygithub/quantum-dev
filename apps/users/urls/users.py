@@ -1,5 +1,5 @@
 """
-User CRUD endpoints — mounted at /api/users/.
+User CRUD endpoints - mounted at /api/users/.
 
 /api/users/list/           GET=list  POST=create
 /api/users/list/<id>/      GET=detail PUT=update DELETE=delete
@@ -14,10 +14,12 @@ User CRUD endpoints — mounted at /api/users/.
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from apps.users.views import UserViewSet
+from apps.users.views import OrgRoleViewSet, UserViewSet
 
 router = DefaultRouter()
 router.register(r"list", UserViewSet, basename="user")
+# Settings → Roles & access: /api/users/roles/ (+ /roles/catalog/)
+router.register(r"roles", OrgRoleViewSet, basename="org-role")
 
 urlpatterns = [
     path("", include(router.urls)),
@@ -25,5 +27,5 @@ urlpatterns = [
     # frontend's `updateProfile: (data) => api.put('/users/me/', data)`
     # call 405'd. PUT is now bound to the same `me` action, which already
     # supported PUT internally (see UserViewSet.me) but was unreachable.
-    path("me/", UserViewSet.as_view({"get": "me", "put": "me"}), name="user-me"),
+    path("me/", UserViewSet.as_view({"get": "me", "put": "me", "delete": "me"}), name="user-me"),
 ]

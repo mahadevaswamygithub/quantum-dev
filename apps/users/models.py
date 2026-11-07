@@ -4,15 +4,39 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 
 
+class OrgRole(models.Model):
+    """A named set of staff permissions, owned by one organization
+    (e.g. "Front desk", "Cashier"). Seeded from apps.core.access.PRESETS."""
+    organization = models.ForeignKey('tenants.Organization', on_delete=models.CASCADE, related_name='roles')
+    name = models.CharField(max_length=60)
+    description = models.CharField(max_length=200, blank=True)
+    permissions = models.JSONField(default=list, blank=True)
+    is_preset = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'org_roles'
+        ordering = ['name']
+        constraints = [models.UniqueConstraint(fields=['organization', 'name'], name='uniq_role_name_per_org')]
+
+    def __str__(self):
+        return f"{self.name} - {self.organization.name}"
+
+
 class User(AbstractUser):
     ROLE_CHOICES = [
+        # The platform owner (CoreX): approves, suspends and limits customer
+        # accounts. Belongs to the "public" organization; created only with
+        # `manage.py create_platform_admin`, never from the staff user forms.
+        ('PLATFORM_ADMIN', 'Platform Admin'),
         ('MSP_ADMIN', 'MSP Admin'),
         ('MSP_USER', 'MSP User'),
         ('STP_ADMIN', 'STP Admin'),
         ('STP_USER', 'STP User'),
         ('EMPLOYEE', 'Employee'),
         # Self-registered end customer of a ROOM_BOOKING-type STP org (see
-        # apps.bookings) — never assignable from the staff Add/Edit User
+        # apps.bookings) - never assignable from the staff Add/Edit User
         # forms, only created via the customer self-registration endpoint.
         ('CUSTOMER', 'Customer'),
     ]
@@ -27,6 +51,12 @@ class User(AbstractUser):
         related_name='users'
     )
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='STP_USER')
+    # What an MSP_USER / STP_USER may see and do (see apps.core.access).
+    # Admin tiers ignore it (they have everything); PROTECT so a role in use
+    # can't be deleted out from under its users.
+    access_role = models.ForeignKey(
+        'users.OrgRole', on_delete=models.PROTECT, null=True, blank=True, related_name='users',
+    )
     phone = models.CharField(max_length=20, null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     address = models.TextField(null=True, blank=True)
@@ -42,6 +72,10 @@ class User(AbstractUser):
 
     class Meta:
         db_table = 'users'
+        indexes = [
+            models.Index(fields=['organization', 'role']),
+            models.Index(fields=['organization', 'is_active']),
+        ]
 
     def __str__(self):
         return f"{self.get_full_name()} ({self.email})"
@@ -114,13 +148,16 @@ class AttendanceRecord(models.Model):
         db_table = 'attendance_records'
         unique_together = ('user', 'date')
         ordering = ['-date']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+        ]
  
     def __str__(self):
         return f"{self.user.get_full_name()} - {self.date} - {self.status}"
  
     def save(self, *args, **kwargs):
         if self.check_in and self.check_out:
-            from datetime import datetime, timedelta
+            from datetime import datetime
             ci = datetime.combine(self.date, self.check_in)
             co = datetime.combine(self.date, self.check_out)
             if co > ci:
@@ -152,7 +189,7 @@ class SalarySettings(models.Model):
         db_table = 'salary_settings'
  
     def __str__(self):
-        return f"Salary Settings — {self.organization.name}"
+        return f"Salary Settings - {self.organization.name}"
  
  
 class SalaryRecord(models.Model):
@@ -188,7 +225,7 @@ class SalaryRecord(models.Model):
         ordering = ['-month']
  
     def __str__(self):
-        return f"{self.user.get_full_name()} — {self.month}"
+        return f"{self.user.get_full_name()} - {self.month}"
  
     def calculate(self):
         self.gross_salary = self.daily_rate * self.days_present
@@ -226,7 +263,7 @@ class SalaryAdvance(models.Model):
         ordering = ['-created_at']
  
     def __str__(self):
-        return f"{self.user.get_full_name()} — ₹{self.amount} ({self.status})"
+        return f"{self.user.get_full_name()} - ₹{self.amount} ({self.status})"
  
     @property
     def date(self):
@@ -285,9 +322,13 @@ class LeaveRequest(models.Model):
     class Meta:
         db_table = 'leave_requests'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['from_date', 'to_date']),
+        ]
  
     def __str__(self):
-        return f"{self.user.get_full_name()} — {self.leave_type} ({self.from_date} to {self.to_date})"
+        return f"{self.user.get_full_name()} - {self.leave_type} ({self.from_date} to {self.to_date})"
  
     def save(self, *args, **kwargs):
         if self.from_date and self.to_date:
@@ -309,14 +350,14 @@ class LeaveBalance(models.Model):
         unique_together = ('user', 'leave_type', 'year')
 
     def __str__(self):
-        return f"{self.user.get_full_name()} — {self.leave_type} {self.year}"
+        return f"{self.user.get_full_name()} - {self.leave_type} {self.year}"
 
 
 class ImpersonationToken(models.Model):
     """Single-use, short-lived handoff for MSP-admin-initiated impersonation.
 
     Minted server-side by OrganizationViewSet.impersonate() and immediately
-    consumed by ImpersonationExchangeView in a fresh browser tab — the actual
+    consumed by ImpersonationExchangeView in a fresh browser tab - the actual
     JWT is never placed in a URL, only this opaque one-time code is.
     """
     code = models.UUIDField(default=uuid.uuid4, unique=True, editable=False, db_index=True)
@@ -330,7 +371,28 @@ class ImpersonationToken(models.Model):
     class Meta:
         db_table = 'impersonation_tokens'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['target_user', 'organization']),
+            models.Index(fields=['expires_at', 'used_at']),
+        ]
 
     def __str__(self):
         return f"{self.initiated_by.get_full_name()} → {self.target_user.get_full_name()} ({self.organization.name})"
  
+
+
+class UserTwoFactor(models.Model):
+    """A user's authenticator-app secret (encrypted, apps.core.crypto) and
+    hashed one-time backup codes. `enabled` only after they confirm a code."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='two_factor')
+    secret_encrypted = models.TextField(blank=True)
+    enabled = models.BooleanField(default=False)
+    enabled_at = models.DateTimeField(null=True, blank=True)
+    backup_codes = models.JSONField(default=list, blank=True)
+    last_used_step = models.BigIntegerField(null=True, blank=True)  # blocks reusing the same code
+
+    class Meta:
+        db_table = 'user_two_factor'
+
+    def __str__(self):
+        return f"2FA {'on' if self.enabled else 'pending'} - {self.user.email}"

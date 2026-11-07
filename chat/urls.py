@@ -1,7 +1,7 @@
 """
 chat/urls.py
 
-IMPORTANT: send/ and stream/ must be explicit path() entries — NOT router-registered.
+IMPORTANT: send/ and stream/ must be explicit path() entries - NOT router-registered.
            Registering ChatActionViewSet at "" with @action generates wrong URLs.
 """
 

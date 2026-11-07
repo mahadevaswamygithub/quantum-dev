@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: corex
+  labels:
+    # Reject pods that run privileged or as root by mistake (frontend nginx is allowed: baseline).
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted

@@ -10,7 +10,7 @@ document.head.appendChild(fontLink);
 
 /* ─── Animations + theme tokens ──────────────────────────────────────────────
    Colors are CSS custom properties, flipped by the SAME `dark` class
-   ThemeContext already toggles on <html> for the rest of the app — so this
+   ThemeContext already toggles on <html> for the rest of the app - so this
    widget follows the app's light/dark switch instead of always being dark. */
 const styleEl = document.createElement("style");
 styleEl.textContent = `
@@ -129,9 +129,9 @@ const TOOL_LABELS = {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────
-   COREX LOGO  — custom SVG mark
+   COREX LOGO  - custom SVG mark
    Concept: two interlocked C-brackets forming an X shape with
-   circuit-node dots at each terminal — reads as "CX" and feels
+   circuit-node dots at each terminal - reads as "CX" and feels
    technical / networked, nothing like Gemini's star.
 ───────────────────────────────────────────────────────────────────────── */
 function CoreXLogo({ size = 24, animated = false }) {
@@ -258,7 +258,13 @@ function useChat(sid) {
     abortRef.current = controller;
     try {
       const resp = await chatAPI.streamMessage(text,sid,controller.signal);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) {
+        throw new Error(
+          resp.status === 401 ? 'Your session ended. Please sign in again.'
+            : resp.status === 403 ? 'Your role can’t use the assistant.'
+            : resp.status >= 500 ? 'The assistant is unavailable right now. Please try again in a moment.'
+            : `Request failed (${resp.status}).`);
+      }
       const reader=resp.body.getReader(), dec=new TextDecoder();
       let buf="";
       while(true){
@@ -287,7 +293,7 @@ function useChat(sid) {
       }
     } catch(e) {
       if (e.name === "AbortError") {
-        // User hit Stop — keep whatever partial text already streamed in
+        // User hit Stop - keep whatever partial text already streamed in
         // rather than treating it as a failure.
         setMsgs(p=>p.map(m=>m.streaming?{...m,streaming:false,stopped:true}:m));
       } else {
@@ -299,7 +305,7 @@ function useChat(sid) {
   const stop = useCallback(() => { abortRef.current?.abort(); },[]);
 
   const clear = useCallback(async()=>{
-    // Optimistic — clear the UI instantly instead of waiting on the
+    // Optimistic - clear the UI instantly instead of waiting on the
     // network round-trip (Django's session-delete also best-effort clears
     // the orchestrator's memory server-side, which was making the button
     // feel laggy). The server call still happens, just not blocking the UI.
@@ -342,7 +348,7 @@ function Markdown({text,isUser}){
 
 /* ─── Thinking indicator ─────────────────────────────────────────────────── *
    Replaces a generic three-dot pulse with something that's actually
-   CoreX's own — the same orbiting logo mark used on the FAB, plus a
+   CoreX's own - the same orbiting logo mark used on the FAB, plus a
    rotating line of flavor text (à la Claude Code's CLI spinner), so it
    reads as "the assistant is working" rather than a stock loading widget. */
 const THINKING_PHRASES = [
@@ -421,7 +427,7 @@ function Bubble({msg,isLast}){
 
   const copy = async ()=>{
     try{ await navigator.clipboard.writeText(msg.content); setCopied(true); setTimeout(()=>setCopied(false),1500); }
-    catch{ /* clipboard permission denied — fail silently, nothing to recover */ }
+    catch{ /* clipboard permission denied - fail silently, nothing to recover */ }
   };
 
   return (
@@ -746,17 +752,32 @@ function InputBar({value,onChange,onKeyDown,onSend,onStop,disabled,inputRef}){
   );
 }
 
+/* Phones (< 640px): the panel opens full-screen and the button sits closer to the edge. */
+function useIsPhone(){
+  const query = "(max-width: 639px)";
+  const [phone,setPhone] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.(query).matches);
+  useEffect(()=>{
+    const mq = window.matchMedia?.(query);
+    if(!mq) return undefined;
+    const on = () => setPhone(mq.matches);
+    mq.addEventListener?.("change", on);
+    return () => mq.removeEventListener?.("change", on);
+  },[]);
+  return phone;
+}
+
 /* ─── FAB ────────────────────────────────────────────────────────────────── */
 function Fab({onClick}){
   const [hov,setHov]=useState(false);
+  const phone = useIsPhone();
   return (
     <button
       className="cx-fab-pop" onClick={onClick}
       onMouseEnter={()=>setHov(true)} onMouseLeave={()=>setHov(false)}
-      title="Open CoreX AI"
+      title="Open CoreX AI" aria-label="Open CoreX AI assistant"
       style={{
-        position:"fixed",bottom:28,right:28,zIndex:9999,
-        width:58,height:58,borderRadius:17,border:"none",cursor:"pointer",
+        position:"fixed",bottom:phone?16:28,right:phone?16:28,zIndex:9999,
+        width:phone?52:58,height:phone?52:58,borderRadius:17,border:"none",cursor:"pointer",
         background:hov
           ?"linear-gradient(145deg,#4C51BF,#2B6CB0)"
           :"linear-gradient(145deg,#2B6CB0,#4C51BF)",
@@ -782,6 +803,7 @@ export default function ChatAssistant({sessionId:propSid,user}){
   const inputRef  = useRef(null);
   const sid = useStableSession(propSid,user?.id);
   const {msgs,loading,activeTool,send,clear,stop} = useChat(sid);
+  const phone = useIsPhone();
 
   useEffect(()=>{ bottomRef.current?.scrollIntoView({behavior:"smooth"}); },[msgs,activeTool]);
   useEffect(()=>{ if(open) setTimeout(()=>inputRef.current?.focus(),120); },[open]);
@@ -793,12 +815,15 @@ export default function ChatAssistant({sessionId:propSid,user}){
 
   return (
     <div className="cx-panel" style={{
-      position:"fixed",bottom:28,right:28,zIndex:9999,
-      width:expanded?"min(560px, 92vw)":400,
-      height:expanded?"min(820px, 88vh)":620,
+      position:"fixed",zIndex:9999,
+      ...(phone
+        ? { inset:0, width:"100vw", height:"100dvh" }   // full screen on phones
+        : { bottom:28, right:28,
+            width:expanded?"min(560px, 92vw)":"min(400px, calc(100vw - 32px))",
+            height:expanded?"min(820px, 88vh)":"min(620px, calc(100vh - 56px))" }),
       background:T.panel,
-      border:"1px solid var(--cx-border)",
-      borderRadius:22,
+      border:phone?"none":"1px solid var(--cx-border)",
+      borderRadius:phone?0:22,
       display:"flex",flexDirection:"column",overflow:"hidden",
       fontFamily:T.fontB,
       boxShadow:"var(--cx-panel-shadow)",
@@ -827,7 +852,7 @@ export default function ChatAssistant({sessionId:propSid,user}){
           :<>
             {msgs.map((m,i)=>{
               // Hide the still-empty placeholder bubble while nothing has
-              // streamed in yet — ThinkingIndicator/ToolPill below covers
+              // streamed in yet - ThinkingIndicator/ToolPill below covers
               // that state instead of showing a bare blinking cursor.
               if(m.streaming&&m.content==="") return null;
               return <Bubble key={m.id} msg={m} isLast={i===msgs.length-1}/>;

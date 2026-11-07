@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The `hidden` attribute must win over Tailwind display utilities (flex,
+   inline-flex…). Used to hide actions a staff role isn't allowed to use. */
+[hidden] {
+  display: none !important;
+}
+
+/* Phones: iOS Safari zooms the whole page in when a text field smaller than
+   16px gets focus (the chat box, search fields...). 16px on small screens
+   stops that, without disabling pinch-zoom. Placed outside @layer so it wins
+   over Tailwind's text-sm on the field. */
+@media (max-width: 639px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+
 @layer base {
   html {
     color-scheme: light;

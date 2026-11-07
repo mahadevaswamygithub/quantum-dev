@@ -10,6 +10,18 @@ export const userAPI = {
   changeUserRole: (id, role) => api.put(`/users/list/${id}/change_role/`, { role }),
   getCurrentUser: () => api.get('/users/me/'),
   updateProfile: (data) => api.put('/users/me/', data),
+  // Lost phone: turn off someone's two-step verification
+  reset2fa: (id) => api.post(`/users/list/${id}/reset_2fa/`),
+  // Re-send the set-your-password email to someone who hasn't set one yet
+  resendInvite: (id) => api.post(`/users/list/${id}/resend_invite/`),
+  // Settings → Roles & access (staff roles of the user's own organization)
+  getRoles: (params) => api.get('/users/roles/', { params }),
+  getRoleCatalog: () => api.get('/users/roles/catalog/'),
+  createRole: (data) => api.post('/users/roles/', data),
+  updateRole: (id, data) => api.put(`/users/roles/${id}/`, data),
+  deleteRole: (id) => api.delete(`/users/roles/${id}/`),
+  // Guest self-service account deletion (password confirmation required)
+  deleteMyAccount: (password) => api.delete('/users/me/', { data: { password } }),
   uploadProfilePicture: (id, formData) => api.post(`/users/list/${id}/upload_picture/`, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),

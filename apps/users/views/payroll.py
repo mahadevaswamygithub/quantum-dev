@@ -6,7 +6,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from ..models import AttendanceRecord, SalaryAdvance, SalaryRecord, SalarySettings, User
+from apps.core.access import HRScopedMixin, has_perm
+from ..models import AttendanceRecord, SalaryAdvance, SalaryRecord, SalarySettings
 from ..serializers import SalaryAdvanceSerializer, SalaryRecordSerializer, SalarySettingsSerializer
 
 
@@ -24,6 +25,10 @@ class SalarySettingsView(viewsets.ViewSet):
         org = request.user.organization
         if not org:
             return Response({'error': 'No organization'}, status=400)
+        # Reading is fine for anyone in the org (employees see their pay in
+        # this currency); changing pay rules is an admin decision.
+        if not has_perm(request.user, 'hr.payroll'):
+            return Response({'error': 'Your role doesn’t allow changing salary settings.'}, status=403)
         settings, _ = SalarySettings.objects.get_or_create(organization=org)
         serializer = SalarySettingsSerializer(settings, data=request.data, partial=True)
         if serializer.is_valid():
@@ -32,20 +37,19 @@ class SalarySettingsView(viewsets.ViewSet):
         return Response(serializer.errors, status=400)
 
 
-class SalaryRecordViewSet(viewsets.ModelViewSet):
+class SalaryRecordViewSet(HRScopedMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = SalaryRecordSerializer
+    hr_perm = 'hr.payroll'
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # Employees can read their own salary and payslips; everything else is staff-only.
+        if self.action not in ('list', 'retrieve', 'payslip'):
+            self.require_hr_perm()
 
     def get_queryset(self):
-        qs = SalaryRecord.objects.select_related('user').order_by('-month')
-        req = self.request
-        user_id = req.query_params.get('user_id')
-
-        if req.user.role == 'EMPLOYEE':
-            return qs.filter(user=req.user)
-        if user_id:
-            return qs.filter(user_id=user_id)
-        return qs
+        return self.hr_queryset(SalaryRecord.objects.select_related('user').order_by('-month'))
 
     @action(detail=False, methods=['post'], url_path='process')
     def process_salary(self, request):
@@ -55,10 +59,7 @@ class SalaryRecordViewSet(viewsets.ModelViewSet):
         if not user_id or not month:
             return Response({'error': 'user_id and month required'}, status=400)
 
-        try:
-            emp = User.objects.get(id=user_id)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=404)
+        emp = self.hr_target_user(user_id)
 
         year, m = month.split('-')
         present_days = AttendanceRecord.objects.filter(
@@ -129,7 +130,7 @@ class SalaryRecordViewSet(viewsets.ModelViewSet):
             details = [
                 ("Name", record.user.get_full_name()),
                 ("Email", record.user.email),
-                ("Organization", record.user.organization_name or '—'),
+                ("Organization", record.user.organization_name or '-'),
                 ("Employee ID", record.user.employee_id or str(record.user.id)),
             ]
             for i, (k, v) in enumerate(details):
@@ -185,10 +186,10 @@ class SalaryRecordViewSet(viewsets.ModelViewSet):
         except ImportError:
             # Fallback plain text
             content = f"""
-                PAYSLIP — {record.month}
+                PAYSLIP - {record.month}
                 Employee: {record.user.get_full_name()}
                 Email: {record.user.email}
-                Organization: {record.user.organization_name or '—'}
+                Organization: {record.user.organization_name or '-'}
                 Days Present: {record.days_present}
                 Daily Rate: ₹{record.daily_rate}
                 Gross Salary: ₹{record.gross_salary}
@@ -201,23 +202,21 @@ class SalaryRecordViewSet(viewsets.ModelViewSet):
             return response
 
 
-class SalaryAdvanceViewSet(viewsets.ModelViewSet):
+class SalaryAdvanceViewSet(HRScopedMixin, viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = SalaryAdvanceSerializer
+    hr_perm = 'hr.payroll'
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if self.action in ('update', 'partial_update', 'destroy', 'approve', 'reject'):
+            self.require_hr_perm()
 
     def get_queryset(self):
-        qs = SalaryAdvance.objects.select_related('user').order_by('-created_at')
-        user_id = self.request.query_params.get('user_id')
-        if self.request.user.role == 'EMPLOYEE':
-            return qs.filter(user=self.request.user)
-        if user_id:
-            return qs.filter(user_id=user_id)
-        return qs
+        return self.hr_queryset(SalaryAdvance.objects.select_related('user').order_by('-created_at'))
 
     def perform_create(self, serializer):
-        user_id = self.request.data.get('user_id') or self.request.user.id
-        user = User.objects.get(id=user_id)
-        serializer.save(user=user)
+        serializer.save(user=self.hr_target_user(self.request.data.get('user_id')))
 
     @action(detail=True, methods=['post'], url_path='approve')
     def approve(self, request, pk=None):

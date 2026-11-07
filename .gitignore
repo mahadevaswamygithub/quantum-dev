@@ -21,6 +21,9 @@
 # real Docker prod secrets (root and orchestrator/) — .env.prod.example stays tracked
 .env.prod
 
+# real Kubernetes secrets — only the *.env.example files are tracked
+/k8s/overlays/*/secrets/*.env
+
 # Django collectstatic output (Docker prod build only; dev doesn't generate this)
 /staticfiles
 
@@ -33,3 +36,12 @@ yarn-error.log*
 venv/
 env/
 __pycache__/
+
+# User uploads (MEDIA_ROOT) — never commit: they can contain personal documents.
+/media/
+# Old upload folders from before uploads moved under media/
+/profile_pictures/
+/room_images/
+/user_documents/
+/org_logos/
+/org_covers/

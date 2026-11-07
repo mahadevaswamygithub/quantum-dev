@@ -4,7 +4,7 @@ import PageSpinner from './common/PageSpinner';
 import { bookingAPI } from '../services/api';
 import { CalendarPlus, CreditCard, LogIn, LogOut, Ban, RotateCcw, Clock } from 'lucide-react';
 
-// Keyed by the *to* status in a log's changes.status: [old, new] pair —
+// Keyed by the *to* status in a log's changes.status: [old, new] pair -
 // covers every transition BookingViewSet writes (create/verify_payment/
 // confirm/check_in/check_out/cancel/refund in apps/bookings/views.py).
 const EVENT_META = {
@@ -27,8 +27,8 @@ const eventFor = (log) => {
 };
 
 /**
- * Full timeline for one booking — made / confirmed / checked in / checked
- * out / cancelled — each with who did it and exactly when. Pulls from
+ * Full timeline for one booking - made / confirmed / checked in / checked
+ * out / cancelled - each with who did it and exactly when. Pulls from
  * GET /bookings/reservations/<id>/history/ (apps/bookings/views.py
  * BookingViewSet.history), which reads the same ActivityLog rows the
  * admin-only Activity Log page shows, just filtered to this one booking and

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import Pagination from '../components/common/Pagination';
 import SearchFilterBar from '../components/common/SearchFilterBar';
 import { useAuth } from '../context/AuthContext';
-import { activityAPI, tenantAPI, userAPI } from '../services/api';
+import { activityAPI } from '../services/api';
 import {
   History, Plus, Pencil, Trash2, LogIn, LogOut, ChevronDown, ChevronUp,
 } from 'lucide-react';
@@ -32,7 +34,7 @@ const ActionBadge = ({ action }) => {
 
 const ChangesCell = ({ changes }) => {
   const [open, setOpen] = useState(false);
-  if (!changes || Object.keys(changes).length === 0) return <span className="text-slate-400 dark:text-slate-500 text-xs">—</span>;
+  if (!changes || Object.keys(changes).length === 0) return <span className="text-slate-400 dark:text-slate-500 text-xs">-</span>;
   const entries = Object.entries(changes);
   return (
     <div>
@@ -47,8 +49,8 @@ const ChangesCell = ({ changes }) => {
           {entries.map(([field, [oldVal, newVal]]) => (
             <div key={field} className="text-xs text-slate-500 dark:text-slate-400">
               <span className="font-medium text-slate-600 dark:text-slate-300">{field}</span>:{' '}
-              <span className="line-through opacity-70">{oldVal ?? '—'}</span>{' → '}
-              <span className="text-slate-900 dark:text-white">{newVal ?? '—'}</span>
+              <span className="line-through opacity-70">{oldVal ?? '-'}</span>{' → '}
+              <span className="text-slate-900 dark:text-white">{newVal ?? '-'}</span>
             </div>
           ))}
         </div>
@@ -60,8 +62,6 @@ const ChangesCell = ({ changes }) => {
 const ActivityLogPage = () => {
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [tenants, setTenants] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,27 +89,14 @@ const ActivityLogPage = () => {
       setLoading(false);
     }
   }, [search, actionFilter, modelFilter, dateFrom, dateTo]);
-
-  // Sidebar just needs counts for its badges — fetched once, independent of the log filters/table above.
-  useEffect(() => {
-    const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
-    (async () => {
-      try {
-        const calls = [userAPI.getUsers()];
-        if (isMSP) calls.push(tenantAPI.getTenants());
-        const [usersRes, tenantsRes] = await Promise.all(calls);
-        setAllUsers(usersRes.data || []);
-        if (tenantsRes) setTenants(tenantsRes.data || []);
-      } catch (err) { console.error(err); }
-    })();
-  }, [user.role]);
+  const live = useAutoRefresh(fetchLogs, { onFocus: false });
 
   useEffect(() => {
     const t = setTimeout(fetchLogs, 300); // debounce the search box
     return () => clearTimeout(t);
   }, [fetchLogs]);
 
-  // Any filter change reshuffles the result set — start back on page 1
+  // Any filter change reshuffles the result set - start back on page 1
   // so the user isn't left staring at an out-of-range/empty page.
   useEffect(() => { setPage(1); }, [search, actionFilter, modelFilter, dateFrom, dateTo]);
 
@@ -123,16 +110,16 @@ const ActivityLogPage = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar
           userRole={user.role}
-          tenants={tenants}
-          users={allUsers}
+         
+         
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
 
-        <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
-          {/* Static header + toolbar — only the records list below scrolls */}
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden min-h-0 flex flex-col">
+          {/* Static header + toolbar - only the records list below scrolls */}
           <div className="flex-shrink-0">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <History className="w-6 h-6 text-green-500" /> Activity Log
@@ -141,6 +128,7 @@ const ActivityLogPage = () => {
                   {user.role === 'MSP_ADMIN' ? 'Record changes and sign-ins across your organizations' : 'Record changes and sign-ins in your organization'}
                 </p>
               </div>
+              <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
             </div>
 
             {/* Toolbar */}
@@ -182,10 +170,10 @@ const ActivityLogPage = () => {
             </SearchFilterBar>
           </div>
 
-          {/* Scrollable records — header/toolbar above and pagination below stay put.
+          {/* Scrollable records - header/toolbar above and pagination below stay put.
               overflow-auto lives directly on this card (not on a nested
               overflow-x-auto wrapper) so the sticky thead below has an actual
-              scrolling ancestor to stick within — nesting it one level down
+              scrolling ancestor to stick within - nesting it one level down
               silently breaks position:sticky. */}
           <div className="flex-1 overflow-auto min-h-0 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl">
             {loading ? (
@@ -216,10 +204,10 @@ const ActivityLogPage = () => {
                       </td>
                       <td className="px-4 py-3"><ActionBadge action={log.action} /></td>
                       <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                        {log.object_repr || <span className="text-slate-400">—</span>}
+                        {log.object_repr || <span className="text-slate-400">-</span>}
                         {log.model_name && <div className="text-xs text-slate-400">{log.model_name}</div>}
                       </td>
-                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{log.organization_name || '—'}</td>
+                      <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{log.organization_name || '-'}</td>
                       <td className="px-4 py-3"><ChangesCell changes={log.changes} /></td>
                     </tr>
                   ))}

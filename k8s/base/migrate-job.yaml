@@ -1,0 +1,48 @@
+# Database migrations + the public tenant's Domain rows, once per release.
+# The backend and Celery pods wait for this (wait_for_migrations init container).
+#
+# A Job can't be changed once created, so k8s/deploy.sh deletes the previous
+# one before applying. If you apply by hand:
+#   kubectl -n corex delete job corex-migrate --ignore-not-found
+#   kubectl apply -k k8s/overlays/production
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: corex-migrate
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: corex
+        app.kubernetes.io/component: migrate
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: corex-backend
+          # backend-entrypoint.sh waits for Postgres, runs migrate_schemas and
+          # bootstrap_public_tenant (PUBLIC_TENANT_DOMAIN + "backend"), then
+          # runs this command, which just exits.
+          args: ["true"]
+          envFrom:
+            - configMapRef: {name: corex-config}
+            - secretRef: {name: corex-secrets}
+          env:
+            - name: SKIP_MIGRATE
+              value: "0"
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {memory: 768Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]

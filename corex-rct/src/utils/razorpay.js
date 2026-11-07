@@ -1,5 +1,5 @@
 /**
- * Loads Razorpay's hosted Checkout script on demand — no npm package, same
+ * Loads Razorpay's hosted Checkout script on demand - no npm package, same
  * zero-extra-dependency approach this project already uses for Nominatim
  * geocoding (see utils/geocode.js). Cached so repeat bookings don't
  * re-inject the script tag.

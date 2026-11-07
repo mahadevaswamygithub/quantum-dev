@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
@@ -9,14 +11,15 @@ import EmptyState from '../components/common/EmptyState';
 import SearchFilterBar from '../components/common/SearchFilterBar';
 import PropertyFormModal from '../components/PropertyFormModal';
 import { useAuth } from '../context/AuthContext';
-import { bookingAPI, userAPI } from '../services/api';
+import { usePermissions } from '../hooks/usePermissions';
+import { bookingAPI } from '../services/api';
 import { Building2, Plus, Pencil, Trash2, BedDouble, MapPin } from 'lucide-react';
 
 const PropertiesList = () => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [properties, setProperties] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -27,14 +30,14 @@ const PropertiesList = () => {
 
   const fetchData = useCallback(async () => {
     try {
-      const [propsRes, usersRes] = await Promise.all([bookingAPI.getProperties(), userAPI.getUsers()]);
+      const propsRes = await bookingAPI.getProperties();
       setProperties(propsRes.data || []);
-      setAllUsers(usersRes.data || []);
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  const live = useAutoRefresh(fetchData);
 
   const filtered = properties.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -55,19 +58,22 @@ const PropertiesList = () => {
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
       <div className="flex flex-1 min-h-0">
-        <Sidebar userRole={user.role} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
+        <Sidebar userRole={user.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
-          <div className="flex items-center justify-between mb-6">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
             <div>
               <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Building2 className="w-6 h-6 text-green-500" /> Properties
               </h1>
               <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-                {filtered.length} of {properties.length} buildings — guests pick one of these before choosing a room
+                {filtered.length} of {properties.length} buildings - guests pick one of these before choosing a room
               </p>
             </div>
-            <Button icon={Plus} onClick={() => { setEditingProperty(null); setShowForm(true); }}>Add Property</Button>
+            <div className="flex items-center gap-3">
+              {can('rooms.manage') && <Button icon={Plus} onClick={() => { setEditingProperty(null); setShowForm(true); }}>Add Property</Button>}
+              <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+            </div>
           </div>
 
           <SearchFilterBar search={search} onSearchChange={setSearch} placeholder="Search properties..." />
@@ -76,7 +82,7 @@ const PropertiesList = () => {
             <Card>
               <EmptyState
                 icon={Building2} title="No properties yet"
-                description="Add each building/branch first — rooms belong to a property, and guests choose one before browsing rooms."
+                description="Add each building/branch first - rooms belong to a property, and guests choose one before browsing rooms."
               />
             </Card>
           ) : (
@@ -96,7 +102,7 @@ const PropertiesList = () => {
                   <p className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 mb-3">
                     <BedDouble className="w-3.5 h-3.5" /> {prop.room_count} room{prop.room_count !== 1 ? 's' : ''}
                   </p>
-                  <div className="flex gap-2">
+                  {can('rooms.manage') && <div className="flex gap-2">
                     <button
                       onClick={() => { setEditingProperty(prop); setShowForm(true); }}
                       className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-white text-xs font-medium rounded-lg transition-colors"
@@ -109,7 +115,7 @@ const PropertiesList = () => {
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
-                  </div>
+                  </div>}
                 </Card>
               ))}
             </div>

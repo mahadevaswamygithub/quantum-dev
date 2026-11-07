@@ -63,10 +63,22 @@ services:
       # "localhost" (that's only correct for docker-compose.yml/dev).
       # Required — fails fast rather than silently seeding the wrong domain.
       PUBLIC_TENANT_DOMAIN: ${PUBLIC_TENANT_DOMAIN:?set PUBLIC_TENANT_DOMAIN in .env.prod (e.g. your production domain)}
+      # nginx (frontend container) sits in front of Django — needed for correct per-IP rate limits.
+      TRUSTED_PROXY_COUNT: 1
+      # Production defaults (override in .env.prod if needed):
+      CACHE_USE_REDIS: ${CACHE_USE_REDIS:-True}                       # shared lockouts / rate limits
+      BOOKING_EMAILS_VIA_CELERY: ${BOOKING_EMAILS_VIA_CELERY:-True}   # emails retried by the worker
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    healthcheck:
+      # Ready = database, Redis and file storage all answer (see apps/core/health.py).
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health/ready/', timeout=5).status == 200 else 1)\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     volumes:
-      - profile_pictures:/app/profile_pictures
-      - room_images:/app/room_images
-      - user_documents:/app/user_documents
+      # All uploads (photos, logos, covers, documents) — one persistent volume.
+      - media:/app/media
     ports:
       - "8000:8000"
     depends_on:
@@ -80,7 +92,7 @@ services:
       context: .
       dockerfile: Dockerfile
       target: prod
-    command: celery -A corex worker -l info
+    command: celery -A corex worker -l info --concurrency=${CELERY_CONCURRENCY:-4}
     restart: always
     env_file:
       - .env.prod
@@ -90,13 +102,37 @@ services:
       REDIS_URL: redis://redis:6379/0
       DEBUG: "False"
       SKIP_MIGRATE: "1" # backend already migrates; avoid a race between the two
+      CACHE_USE_REDIS: ${CACHE_USE_REDIS:-True}
+      LOG_FORMAT: ${LOG_FORMAT:-json}
     volumes:
-      - profile_pictures:/app/profile_pictures
-      - room_images:/app/room_images
-      - user_documents:/app/user_documents
+      # All uploads (photos, logos, covers, documents) — one persistent volume.
+      - media:/app/media
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  # Scheduler for periodic jobs (e.g. expiring unpaid bookings). Run exactly ONE.
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: prod
+    command: celery -A corex beat -l info --schedule /tmp/celerybeat-schedule
+    restart: always
+    env_file:
+      - .env.prod
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+      SKIP_MIGRATE: "1"
+      LOG_FORMAT: ${LOG_FORMAT:-json}
+    depends_on:
       redis:
         condition: service_healthy
       backend:
@@ -136,6 +172,10 @@ services:
         # so the browser never needs to know the backend's real host.
         REACT_APP_API_URL: /api
     restart: always
+    volumes:
+      # nginx serves uploaded photos/logos from the shared volume (without S3,
+      # Django doesn't serve /media when DEBUG is off).
+      - media:/usr/share/nginx/media:ro
     ports:
       - "80:80"
     depends_on:
@@ -144,6 +184,4 @@ services:
 volumes:
   pgdata:
   redisdata:
-  profile_pictures:
-  room_images:
-  user_documents:
+  media:

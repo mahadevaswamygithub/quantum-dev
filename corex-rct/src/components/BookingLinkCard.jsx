@@ -3,7 +3,7 @@ import { Link2, Check, Copy } from 'lucide-react';
 import Card from './common/Card';
 
 /**
- * One shared link for the whole platform — a guest picks their property
+ * One shared link for the whole platform - a guest picks their property
  * from a list there (BookingHome.jsx) rather than staff having to hand
  * out an org-specific URL with a raw numeric ID baked in.
  */
@@ -17,7 +17,7 @@ const BookingLinkCard = () => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Clipboard API can be unavailable (e.g. insecure context) — the
+      // Clipboard API can be unavailable (e.g. insecure context) - the
       // link is still selectable/visible in the input, so this isn't fatal.
     }
   };
@@ -26,7 +26,7 @@ const BookingLinkCard = () => {
     <Card className="p-4 mb-5 flex flex-wrap items-center gap-3">
       <Link2 className="w-5 h-5 text-green-500 flex-shrink-0" />
       <div className="flex-1 min-w-[240px]">
-        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Share this link — guests pick your property from the list and book</p>
+        <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Share this link - guests pick your property from the list and book</p>
         <input
           readOnly value={link} onFocus={e => e.target.select()}
           className="w-full mt-1 px-2 py-1.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-600 dark:text-slate-300 text-xs font-mono"

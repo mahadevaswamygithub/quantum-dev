@@ -24,6 +24,9 @@ class ChatSession(models.Model):
     class Meta:
         db_table = "chat_sessions"
         ordering = ["-updated_at"]
+        indexes = [
+            models.Index(fields=["user", "-updated_at"]),
+        ]
 
     def __str__(self):
         return f"{self.title} ({self.user.email})"
@@ -43,3 +46,6 @@ class ChatMessage(models.Model):
     class Meta:
         db_table = "chat_messages"
         ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["session", "created_at"]),
+        ]

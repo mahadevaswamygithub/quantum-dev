@@ -4,7 +4,7 @@ import { Search } from 'lucide-react';
 const inputCls = "w-full pl-9 pr-4 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500";
 
 /**
- * Generic search+filters toolbar shell — refactors the repeated inline
+ * Generic search+filters toolbar shell - refactors the repeated inline
  * toolbar markup (search box + filter selects) duplicated across
  * OrganizationsList/UsersList/ActivityLog into one reusable piece. Extra
  * filter controls (selects, date inputs, view-mode toggles, ...) are

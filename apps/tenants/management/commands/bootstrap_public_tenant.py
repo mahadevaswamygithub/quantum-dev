@@ -1,21 +1,21 @@
 """
 Ensures the public-schema tenant + its Domain row(s) exist.
 
-django-tenants' TenantMainMiddleware routes purely by the HTTP Host header —
+django-tenants' TenantMainMiddleware routes purely by the HTTP Host header -
 it needs a Domain row matching that exact hostname before it'll route *any*
 request, tenant-scoped or not. With neither SHOW_PUBLIC_IF_NO_TENANT_FOUND
 nor DEFAULT_NOT_FOUND_TENANT_VIEW configured, an unmatched hostname gets a
 bare Http404 (which, since it never reaches a view, has no CORS headers
-either — the browser reports that as a CORS error, not a 404).
+either - the browser reports that as a CORS error, not a 404).
 
 Two different hostnames hit this in the Docker setup, and both need a row:
-  - "localhost" (or PUBLIC_TENANT_DOMAIN in prod) — what the browser uses
-  - "backend"                                     — what the orchestrator's
+  - "localhost" (or PUBLIC_TENANT_DOMAIN in prod) - what the browser uses
+  - "backend"                                     - what the orchestrator's
     server-to-server tool calls use (DJANGO_API_BASE_URL=http://backend:8000
-    in docker-compose.yml/.prod.yml) — same Docker network, different Host
+    in docker-compose.yml/.prod.yml) - same Docker network, different Host
     header, so it needs its own Domain row even though it's the same server.
 
-On a fresh database (no Organization/Domain rows yet — first `docker compose
+On a fresh database (no Organization/Domain rows yet - first `docker compose
 up`, or any brand-new Postgres) every request 404s until these exist. Safe to
 run repeatedly (get_or_create); called automatically from
 docker/backend-entrypoint.sh on every container start.

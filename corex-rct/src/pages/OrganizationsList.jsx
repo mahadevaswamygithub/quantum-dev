@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import RefreshButton from '../components/common/RefreshButton';
+import { usePermissions } from '../hooks/usePermissions';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
@@ -19,6 +22,7 @@ import Avatar from '../components/common/Avatar';
 const PAGE_SIZE = 12;
 
 const OrganizationsList = () => {
+  const { can } = usePermissions();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -27,7 +31,7 @@ const OrganizationsList = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
-  const [viewMode, setViewMode] = useState('table'); // 'card' | 'table' — table is the proper list; card grid stays available via the toggle
+  const [viewMode, setViewMode] = useState('table'); // 'card' | 'table' - table is the proper list; card grid stays available via the toggle
   const [page, setPage] = useState(1);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -39,14 +43,19 @@ const OrganizationsList = () => {
   const isMSP = user.role === 'MSP_ADMIN' || user.role === 'MSP_USER';
   const basePath = '/msp';
 
+  // This customer account's hotel limit (set by CoreX): {property_limit, property_count, status}.
+  const [account, setAccount] = useState(null);
+
   const fetchData = useCallback(async () => {
     try {
-      const [orgsRes, usersRes] = await Promise.all([
+      const [orgsRes, usersRes, mineRes] = await Promise.all([
         tenantAPI.getTenants(),
         userAPI.getUsers(),
+        tenantAPI.getMyOrganization().catch(() => null),
       ]);
       setOrganizations(orgsRes.data || []);
       setAllUsers(usersRes.data || []);
+      setAccount(mineRes?.data?.account || null);
     } catch (err) {
       console.error(err);
     } finally {
@@ -55,6 +64,7 @@ const OrganizationsList = () => {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  const live = useAutoRefresh(fetchData);
 
   const filtered = organizations.filter(o => {
     const matchSearch = o.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -62,7 +72,7 @@ const OrganizationsList = () => {
     return matchSearch && matchStatus;
   });
 
-  // Filters reshuffle the result set — back to page 1 so pagination doesn't
+  // Filters reshuffle the result set - back to page 1 so pagination doesn't
   // land on an out-of-range/empty page.
   useEffect(() => { setPage(1); }, [searchTerm, filterStatus]);
 
@@ -97,6 +107,7 @@ const OrganizationsList = () => {
   };
 
   if (loading) return <PageSpinner label="Loading..." />;
+  const limitReached = !!account?.property_limit && account.property_count >= account.property_limit;
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
@@ -110,17 +121,29 @@ const OrganizationsList = () => {
           onToggleCollapse={() => setSidebarCollapsed(p => !p)}
         />
 
-        <div className="flex-1 p-6 overflow-hidden min-h-0 flex flex-col">
-          {/* Static header + toolbar — only the records below scroll */}
+        <div className="flex-1 p-3 sm:p-6 overflow-hidden min-h-0 flex flex-col">
+          {/* Static header + toolbar - only the records below scroll */}
           <div className="flex-shrink-0">
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4 sm:mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Organizations</h1>
-                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">{filtered.length} of {organizations.length} organizations</p>
+                <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
+                  {filtered.length} of {organizations.length} organizations
+                  {account?.property_limit ? ` · your plan: ${account.property_count} of ${account.property_limit} hotels used` : ''}
+                </p>
               </div>
-              {isMSP && (
-                <Button icon={Plus} onClick={() => setShowAddModal(true)}>Add Organization</Button>
-              )}
+              <div className="flex items-center gap-3">
+                {isMSP && can('organizations.manage') && (
+                  limitReached ? (
+                    <span className="text-sm text-slate-500 dark:text-slate-400" title="Contact CoreX to raise your plan's hotel limit">
+                      Hotel limit reached. Contact CoreX to add more.
+                    </span>
+                  ) : (
+                    <Button icon={Plus} onClick={() => setShowAddModal(true)}>Add hotel</Button>
+                  )
+                )}
+                <RefreshButton onClick={live.refresh} refreshing={live.refreshing} lastUpdated={live.lastUpdated} />
+              </div>
             </div>
 
             {/* Toolbar */}
@@ -151,7 +174,7 @@ const OrganizationsList = () => {
             </SearchFilterBar>
           </div>
 
-          {/* Scrollable records — this wrapper only bounds the height; each
+          {/* Scrollable records - this wrapper only bounds the height; each
               view below owns its own single overflow-auto element sized via
               h-full, so a sticky thead (Table View) has one real scrolling
               ancestor to stick within instead of two nested ones. */}
@@ -181,7 +204,7 @@ const OrganizationsList = () => {
                     >
                       <Eye className="w-4 h-4 text-green-400" />
                     </button>
-                    {org.tenant_type === 'STP' && (
+                    {can('organizations.impersonate') && org.tenant_type === 'STP' && (
                       <button
                         onClick={e => handleImpersonate(org.id, e)}
                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
@@ -191,7 +214,7 @@ const OrganizationsList = () => {
                       </button>
                     )}
                     <button
-                      onClick={e => handleToggle(org.id, e)}
+                      hidden={!can('organizations.manage')} onClick={e => handleToggle(org.id, e)}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title={org.is_active ? 'Deactivate' : 'Activate'}
                     >
@@ -200,14 +223,14 @@ const OrganizationsList = () => {
                         : <ToggleLeft className="w-4 h-4 text-slate-400" />}
                     </button>
                     <button
-                      onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowEditModal(true); }}
+                      hidden={!can('organizations.manage')} onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowEditModal(true); }}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title="Edit"
                     >
                       <Edit className="w-4 h-4 text-blue-400" />
                     </button>
                     <button
-                      onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowDeleteModal(true); }}
+                      hidden={!can('organizations.manage')} onClick={e => { e.stopPropagation(); setSelectedOrg(org); setShowDeleteModal(true); }}
                       className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
                       title="Delete"
                     >
@@ -332,18 +355,18 @@ const OrganizationsList = () => {
                         </td>
                         <td className="px-5 py-4">
                           <div className="flex items-center gap-1">
-                            {org.tenant_type === 'STP' && (
+                            {can('organizations.impersonate') && org.tenant_type === 'STP' && (
                               <button onClick={e => handleImpersonate(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Impersonate admin (opens in a new tab)">
                                 <LogIn className="w-4 h-4 text-purple-400" />
                               </button>
                             )}
-                            <button onClick={e => handleToggle(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={org.is_active ? 'Deactivate' : 'Activate'}>
+                            <button hidden={!can('organizations.manage')} onClick={e => handleToggle(org.id, e)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title={org.is_active ? 'Deactivate' : 'Activate'}>
                               {org.is_active ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4 text-slate-400" />}
                             </button>
-                            <button onClick={() => { setSelectedOrg(org); setShowEditModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
+                            <button hidden={!can('organizations.manage')} onClick={() => { setSelectedOrg(org); setShowEditModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Edit">
                               <Edit className="w-4 h-4 text-blue-400" />
                             </button>
-                            <button onClick={() => { setSelectedOrg(org); setShowDeleteModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
+                            <button hidden={!can('organizations.manage')} onClick={() => { setSelectedOrg(org); setShowDeleteModal(true); }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="Delete">
                               <Trash2 className="w-4 h-4 text-red-400" />
                             </button>
                             <button onClick={() => navigate(`${basePath}/organizations/${org.id}`)} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors" title="View Details">

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { Lock, AlertCircle, Loader2, CheckCircle } from 'lucide-react';
 
 const ResetPassword = () => {
   const { uid, token } = useParams();
+  // Guests' reset links carry ?guest=1 (set by the API) - send them back to the booking site's login.
+  const [searchParams] = useSearchParams();
+  const loginPath = searchParams.get('guest') === '1' ? '/book/login' : '/login';
   const navigate = useNavigate();
   
   const [formData, setFormData] = useState({
@@ -48,7 +51,7 @@ const ResetPassword = () => {
       );
       setSuccess(true);
       setTimeout(() => {
-        navigate('/login');
+        navigate(loginPath);
       }, 3000);
     } catch (err) {
       setError(err.response?.data?.non_field_errors?.[0] || 'Failed to reset password. The link may have expired.');
@@ -76,7 +79,7 @@ const ResetPassword = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="inline-block w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mb-4">
             <span className="text-2xl font-bold text-white">CX</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">Reset Password</h1>
@@ -146,7 +149,7 @@ const ResetPassword = () => {
 
           <div className="mt-6 text-center">
             <Link
-              to="/login"
+              to={loginPath}
               className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 font-semibold"
             >
               Back to Login

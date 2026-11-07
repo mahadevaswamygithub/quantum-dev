@@ -2,17 +2,17 @@
  * Free, no-API-key geocoding via OpenStreetMap's Nominatim.
  *
  * Usage-policy notes (nominatim.org/release-docs/latest/api/Search/):
- *  - max ~1 request/second — fine here since every call is a single
+ *  - max ~1 request/second - fine here since every call is a single
  *    user-triggered action (clicking "Search" / opening the edit modal),
  *    never fired on keystroke.
  *  - browsers can't override the User-Agent header from fetch(); Nominatim
  *    accepts the browser's Referer as identification for client-side apps.
- *  - results are © OpenStreetMap contributors — attribute wherever a
+ *  - results are © OpenStreetMap contributors - attribute wherever a
  *    resolved location is shown (see the modals using this).
  */
 const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
 
-// The backend stores coordinates as DecimalField(decimal_places=6) — ~11cm
+// The backend stores coordinates as DecimalField(decimal_places=6) - ~11cm
 // precision, plenty for a dashboard pin. Nominatim often returns 7+ decimal
 // places, which the API would otherwise reject with "Ensure that there are
 // no more than 6 decimal places." Round once here, at the source.

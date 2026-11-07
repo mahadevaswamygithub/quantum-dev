@@ -2,12 +2,37 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Loader2, Camera, Building2 } from 'lucide-react';
 import { tenantAPI } from '../services/api';
 import Modal from './common/Modal';
-import { ORG_TYPES } from '../constants/orgTypes';
+import { AVAILABLE_ORG_TYPES, ORG_TYPES } from '../constants/orgTypes';
 import LocationField from './LocationField';
 import Avatar from './common/Avatar';
+import Tooltip from './common/Tooltip';
+
+const SELECT_CLS = "w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500";
+
+/** Business vertical picker. With a single choice there's nothing to pick,
+ * so it renders as read-only text; it turns back into a dropdown on its own
+ * once a second vertical is added to AVAILABLE_ORG_TYPES. */
+const BusinessTypeField = ({ value, onChange, options, required }) => (
+  <div>
+    <div className="flex items-center gap-1.5 mb-1.5">
+      <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Business Type{required && ' *'}</label>
+      <Tooltip content="Determines what this organization's portal looks like." />
+    </div>
+    {options.length === 1 && value === options[0].value ? (
+      <div className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm">
+        {options[0].label}
+      </div>
+    ) : (
+      <select value={value} onChange={e => onChange(e.target.value)} required={required} className={SELECT_CLS}>
+        <option value="" disabled>Select a business type…</option>
+        {options.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+      </select>
+    )}
+  </div>
+);
 
 const emptyOrgForm = (parentOrgId) => ({
-  name: '', tenant_type: 'STP', org_type: '', parent_organization_id: parentOrgId || null,
+  name: '', tenant_type: 'STP', org_type: AVAILABLE_ORG_TYPES[0].value, parent_organization_id: parentOrgId || null,
   latitude: '', longitude: '',
   admin_first_name: '', admin_last_name: '', admin_email: '',
 });
@@ -35,20 +60,21 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
       onSuccess();
       onClose();
     } catch (err) {
+      const apiError = err.response?.data?.error;
       setError(
         err.response?.data?.name?.[0] ||
         err.response?.data?.org_type?.[0] ||
         err.response?.data?.latitude?.[0] ||
         err.response?.data?.longitude?.[0] ||
         err.response?.data?.admin_email?.[0] ||
-        err.response?.data?.error ||
+        (Array.isArray(apiError) ? apiError.join(' ') : apiError) ||
         'Failed to create organization'
       );
     } finally { setLoading(false); }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={parentOrgId ? 'Add Sub-Organization' : 'Add Organization'}>
+    <Modal isOpen={isOpen} onClose={onClose} title={parentOrgId ? 'Add hotel' : 'Add Organization'}>
       <form onSubmit={handleSubmit} className="p-5 space-y-4">
         {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-600 dark:text-red-400 text-sm">{error}</div>}
         <div>
@@ -59,8 +85,11 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
         </div>
         {!parentOrgId && (
           <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Organization Type *</label>
-            <select value={form.tenant_type} onChange={e => setForm(f => ({ ...f, tenant_type: e.target.value, org_type: e.target.value === 'MSP' ? '' : f.org_type }))}
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Organization Type *</label>
+              <Tooltip content="MSP manages multiple organizations; STP is a single dedicated tenant portal." />
+            </div>
+            <select value={form.tenant_type} onChange={e => setForm(f => ({ ...f, tenant_type: e.target.value, org_type: e.target.value === 'MSP' ? '' : (f.org_type || AVAILABLE_ORG_TYPES[0].value) }))}
               className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
               <option value="STP">Single Tenant Portal (STP)</option>
               <option value="MSP">Multi-Service Provider (MSP)</option>
@@ -68,15 +97,12 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
           </div>
         )}
         {form.tenant_type === 'STP' && (
-          <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Business Type *</label>
-            <select value={form.org_type} onChange={e => setForm(f => ({ ...f, org_type: e.target.value }))} required
-              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-              <option value="" disabled>Select a business type…</option>
-              {ORG_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-500">Determines what this organization's portal looks like.</p>
-          </div>
+          <BusinessTypeField
+            required
+            value={form.org_type}
+            options={AVAILABLE_ORG_TYPES}
+            onChange={v => setForm(f => ({ ...f, org_type: v }))}
+          />
         )}
 
         <LocationField
@@ -87,8 +113,10 @@ export const AddOrganizationModal = ({ isOpen, onClose, onSuccess, parentOrgId }
         />
 
         <div className="pt-1 border-t border-slate-200 dark:border-slate-700">
-          <p className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Admin User</p>
-          <p className="text-xs text-slate-500 dark:text-slate-500 mb-3">A login will be created for this organization and emailed to the address below.</p>
+          <div className="flex items-center gap-1.5 pt-3 pb-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Admin User</span>
+            <Tooltip content="A login will be created for this organization and emailed to the address below." />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -135,7 +163,7 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
       setForm({
         name: organization.name || '',
         is_active: organization.is_active !== undefined ? organization.is_active : true,
-        org_type: organization.org_type || '',
+        org_type: organization.org_type || (organization.tenant_type === 'STP' ? AVAILABLE_ORG_TYPES[0].value : ''),
         latitude: organization.latitude ?? '',
         longitude: organization.longitude ?? '',
       });
@@ -146,7 +174,7 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
   if (!isOpen || !organization) return null;
 
   // Uploads immediately (like the profile-picture camera button elsewhere)
-  // rather than waiting on the form's Save — a logo isn't a form field the
+  // rather than waiting on the form's Save - a logo isn't a form field the
   // update endpoint accepts, it's its own multipart upload_logo action.
   const handleLogoChange = async (e) => {
     const file = e.target.files?.[0];
@@ -211,14 +239,12 @@ export const EditOrganizationModal = ({ isOpen, onClose, onSuccess, organization
             className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500" />
         </div>
         {organization.tenant_type === 'STP' && (
-          <div>
-            <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">Business Type</label>
-            <select value={form.org_type} onChange={e => setForm(f => ({ ...f, org_type: e.target.value }))}
-              className="w-full px-3 py-2.5 bg-slate-100 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500">
-              <option value="" disabled>Select a business type…</option>
-              {ORG_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-            </select>
-          </div>
+          <BusinessTypeField
+            value={form.org_type}
+            // Available types, plus the org's current one if it's no longer offered.
+            options={ORG_TYPES.filter(t => AVAILABLE_ORG_TYPES.includes(t) || t.value === organization.org_type)}
+            onChange={v => setForm(f => ({ ...f, org_type: v }))}
+          />
         )}
         <LocationField
           latitude={form.latitude}

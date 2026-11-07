@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { usePermissions } from '../hooks/usePermissions';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
 import PageSpinner from '../components/common/PageSpinner';
 import Avatar from '../components/common/Avatar';
 import { useAuth } from '../context/AuthContext';
-import { userAPI, tenantAPI, attendanceAPI, salaryAPI, leaveAPI } from '../services/api';
+import { userAPI, attendanceAPI, salaryAPI, leaveAPI } from '../services/api';
 import {
   ArrowLeft, ChevronRight, User, Mail, Phone, Calendar, Shield, Building2,
   Clock, DollarSign, CalendarDays, Briefcase, Camera, Download, Plus,
@@ -14,9 +15,9 @@ import {
 
 const TABS = [
   { id: 'profile', label: 'Profile', icon: User },
-  { id: 'attendance', label: 'Attendance', icon: Clock },
-  { id: 'salary', label: 'Salary', icon: DollarSign },
-  { id: 'leaves', label: 'Leaves', icon: CalendarDays },
+  { id: 'attendance', label: 'Attendance', icon: Clock, perm: 'hr.attendance' },
+  { id: 'salary', label: 'Salary', icon: DollarSign, perm: 'hr.payroll' },
+  { id: 'leaves', label: 'Leaves', icon: CalendarDays, perm: 'hr.leaves' },
   { id: 'documents', label: 'Documents', icon: Briefcase },
 ];
 
@@ -27,7 +28,7 @@ const InfoRow = ({ label, value, icon: Icon }) => (
     {Icon && <Icon className="w-4 h-4 text-slate-400 dark:text-slate-500 mt-0.5 flex-shrink-0" />}
     <div>
       <p className="text-xs text-slate-500 dark:text-slate-500 mb-0.5">{label}</p>
-      <p className="text-sm text-slate-900 dark:text-white font-medium">{value || '—'}</p>
+      <p className="text-sm text-slate-900 dark:text-white font-medium">{value || '-'}</p>
     </div>
   </div>
 );
@@ -55,7 +56,8 @@ const ProfileTab = ({ userData, onEditPhoto, uploadingPhoto }) => (
           className="w-24 h-24 rounded-full text-3xl mx-auto"
         />
         <button
-          onClick={onEditPhoto}
+          onClick={onEditPhoto || undefined}
+          hidden={!onEditPhoto}
           disabled={uploadingPhoto}
           title="Change photo"
           className="absolute bottom-0 right-0 w-7 h-7 bg-green-500 hover:bg-green-600 rounded-full flex items-center justify-center transition-all disabled:opacity-50"
@@ -87,7 +89,7 @@ const ProfileTab = ({ userData, onEditPhoto, uploadingPhoto }) => (
         <InfoRow label="Role" value={userData.role} icon={Shield} />
         <InfoRow label="Organization" value={userData.organization_name} icon={Building2} />
         <InfoRow label="Employee ID" value={userData.employee_id || userData.id} icon={Briefcase} />
-        <InfoRow label="Date of Joining" value={userData.created_at ? new Date(userData.created_at).toLocaleDateString() : '—'} icon={Calendar} />
+        <InfoRow label="Date of Joining" value={userData.created_at ? new Date(userData.created_at).toLocaleDateString() : '-'} icon={Calendar} />
       </div>
     </div>
   </div>
@@ -168,9 +170,9 @@ const AttendanceTab = ({ userId }) => {
                     <td className="px-5 py-3 text-sm text-slate-900 dark:text-white">{r.date}</td>
                     <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{new Date(r.date).toLocaleDateString('en', { weekday: 'short' })}</td>
                     <td className="px-5 py-3"><Badge label={r.status} color={statusColor[r.status] || 'blue'} /></td>
-                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_in || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_out || '—'}</td>
-                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.hours_worked ? `${r.hours_worked}h` : '—'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_in || '-'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_out || '-'}</td>
+                    <td className="px-5 py-3 text-sm text-slate-500 dark:text-slate-400">{r.hours_worked ? `${r.hours_worked}h` : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -183,7 +185,7 @@ const AttendanceTab = ({ userId }) => {
 };
 
 // ── Salary Tab ────────────────────────────────────────────────────────────────
-const SalaryTab = ({ userId, isAdminView = false }) => {
+const SalaryTab = ({ userId }) => {
   const [records, setRecords] = useState([]);
   const [advances, setAdvances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -319,7 +321,7 @@ const SalaryTab = ({ userId, isAdminView = false }) => {
                 <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-700/30">
                   <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">{a.date}</td>
                   <td className="px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400 font-semibold">₹{a.amount?.toLocaleString()}</td>
-                  <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{a.note || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{a.note || '-'}</td>
                   <td className="px-4 py-3"><Badge label={a.status} color={a.status === 'APPROVED' ? 'green' : a.status === 'REJECTED' ? 'red' : 'yellow'} /></td>
                 </tr>
               ))}
@@ -462,7 +464,7 @@ const LeavesTab = ({ userId, isAdminView = false }) => {
 };
 
 // ── Documents Tab ─────────────────────────────────────────────────────────────
-const DocumentsTab = ({ userId }) => {
+const DocumentsTab = ({ userId, canManage = true }) => {
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -525,13 +527,13 @@ const DocumentsTab = ({ userId }) => {
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400 text-xs font-medium rounded-lg hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all">
                   <Download className="w-3.5 h-3.5" /> Download
                 </a>
-                <label className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-xs font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all cursor-pointer">
+                <label hidden={!canManage} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 text-xs font-medium rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-all cursor-pointer">
                   <Edit className="w-3.5 h-3.5" /> Replace
                   <input type="file" className="hidden" onChange={e => handleUpload(e, dt.type)} />
                 </label>
               </div>
             ) : (
-              <label className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 text-xs font-medium rounded-lg hover:bg-green-500/20 dark:hover:bg-green-500/30 transition-all cursor-pointer border border-dashed border-green-500/40">
+              <label hidden={!canManage} className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-green-500/10 text-green-600 dark:bg-green-500/20 dark:text-green-400 text-xs font-medium rounded-lg hover:bg-green-500/20 dark:hover:bg-green-500/30 transition-all cursor-pointer border border-dashed border-green-500/40">
                 <Plus className="w-3.5 h-3.5" /> {uploading ? 'Uploading...' : 'Upload'}
                 <input type="file" className="hidden" onChange={e => handleUpload(e, dt.type)} disabled={uploading} />
               </label>
@@ -545,14 +547,14 @@ const DocumentsTab = ({ userId }) => {
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const UserDetail = () => {
+  const { can } = usePermissions();
+  const visibleTabs = TABS.filter(t => !t.perm || can(t.perm));
   const { id } = useParams();
   const navigate = useNavigate();
   const { user: currentUser, updateUser: updateCurrentUser } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
   const [userData, setUserData] = useState(null);
-  const [allOrgs, setAllOrgs] = useState([]);
-  const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const photoInputRef = useRef(null);
@@ -579,14 +581,8 @@ const UserDetail = () => {
   useEffect(() => {
     (async () => {
       try {
-        const [uRes, orgsRes, usersRes] = await Promise.all([
-          userAPI.getUserById(id),
-          tenantAPI.getTenants(),
-          userAPI.getUsers(),
-        ]);
+        const uRes = await userAPI.getUserById(id);
         setUserData(uRes.data);
-        setAllOrgs(orgsRes.data || []);
-        setAllUsers(usersRes.data || []);
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
@@ -604,9 +600,9 @@ const UserDetail = () => {
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex flex-col">
       <Navbar />
       <div className="flex flex-1 min-h-0">
-        <Sidebar userRole={currentUser.role} tenants={allOrgs} users={allUsers} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
+        <Sidebar userRole={currentUser.role} collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-5">
             <button onClick={() => navigate(`${basePath}/users`)} className="hover:text-slate-900 dark:hover:text-white flex items-center gap-1 transition-colors">
@@ -618,7 +614,7 @@ const UserDetail = () => {
 
           {/* Tabs */}
           <div className="flex gap-1 mb-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-1.5 overflow-x-auto">
-            {TABS.map(tab => {
+            {visibleTabs.map(tab => {
               const Icon = tab.icon;
               return (
                 <button
@@ -644,14 +640,14 @@ const UserDetail = () => {
           {activeTab === 'profile' && (
             <ProfileTab
               userData={userData}
-              onEditPhoto={() => photoInputRef.current?.click()}
+              onEditPhoto={can('users.manage') ? () => photoInputRef.current?.click() : null}
               uploadingPhoto={uploadingPhoto}
             />
           )}
-          {activeTab === 'attendance' && <AttendanceTab userId={id} />}
-          {activeTab === 'salary' && <SalaryTab userId={id} isAdminView={true} />}
-          {activeTab === 'leaves' && <LeavesTab userId={id} isAdminView={true} />}
-          {activeTab === 'documents' && <DocumentsTab userId={id} />}
+          {activeTab === 'attendance' && can('hr.attendance') && <AttendanceTab userId={id} />}
+          {activeTab === 'salary' && can('hr.payroll') && <SalaryTab userId={id} />}
+          {activeTab === 'leaves' && can('hr.leaves') && <LeavesTab userId={id} isAdminView={true} />}
+          {activeTab === 'documents' && <DocumentsTab userId={id} canManage={can('users.manage')} />}
         </div>
       </div>
     </div>

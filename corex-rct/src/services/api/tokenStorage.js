@@ -27,6 +27,13 @@ export const tokenStorage = {
     if (impersonation) sessionStorage.setItem(FLAG, '1');
   },
 
+  /** Store a rotated pair (refresh tokens change on every refresh). */
+  setTokens(accessToken, refreshToken) {
+    const store = isImpersonating() ? sessionStorage : localStorage;
+    store.setItem('accessToken', accessToken);
+    if (refreshToken) store.setItem('refreshToken', refreshToken);
+  },
+
   setAccessToken(token) {
     (isImpersonating() ? sessionStorage : localStorage).setItem('accessToken', token);
   },
@@ -37,7 +44,7 @@ export const tokenStorage = {
 
   /**
    * Clears only THIS tab's active session. Deliberately does not touch the
-   * other storage — an impersonated tab (sessionStorage) exiting must never
+   * other storage - an impersonated tab (sessionStorage) exiting must never
    * wipe the normal session (localStorage) that other tabs of this origin
    * are still reading, and vice versa.
    */

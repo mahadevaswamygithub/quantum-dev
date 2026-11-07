@@ -1,6 +1,19 @@
-"""Room-booking vertical — mounted at /api/bookings/.
+"""Room-booking vertical - mounted at /api/bookings/.
 
 /api/bookings/customers/register/            POST  (AllowAny) self-service customer sign-up
+/api/bookings/settings/                      GET (staff), PATCH/PUT (STP admin)
+/api/bookings/guests/                        GET (staff) guests who booked with this property (?search=)
+/api/bookings/collections/                   GET (payments.report) daily collection (?date=YYYY-MM-DD)
+/api/bookings/reviews/                       GET (reviews.view) this property's reviews
+/api/bookings/reviews/<id>/reply/            POST (reviews.reply) public reply
+/api/bookings/public/<org_id>/reviews/       GET (AllowAny) recent public reviews
+/api/bookings/reservations/<id>/record_payment/  POST (payments.collect) cash/UPI/card at the desk
+/api/bookings/reservations/<id>/review/         POST (guest, after check-out)
+/api/bookings/reservations/<id>/voucher/        GET  booking confirmation PDF (guest or staff)
+/api/bookings/razorpay/webhook/              POST  (Razorpay, HMAC-signed) payment notifications
+/api/bookings/public/<org_id>/properties/    GET   (AllowAny) booking-site browsing
+/api/bookings/public/<org_id>/rooms/         GET   (AllowAny) ?check_in&check_out&guests&property
+/api/bookings/public/<org_id>/rooms/<id>/    GET   (AllowAny)
 /api/bookings/properties/                    GET, POST
 /api/bookings/properties/<id>/               GET, PUT, PATCH, DELETE
 /api/bookings/rooms/                         GET, POST  (?property=<id> to filter by building)
@@ -20,7 +33,17 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import PropertyViewSet, RoomViewSet, BookingViewSet, CustomerRegisterView
+from .staff_views import (
+    BookingsExportView, CollectionsExportView, DashboardView, RoomCalendarView, StaffNotificationsView, WalkInBookingView,
+)
+from .guest_views import GuestNotificationsView, WishlistItemView, WishlistView
+from .views import (
+    GuestAssistantView,
+    PropertyViewSet, RoomViewSet, BookingViewSet, CustomerRegisterView, BookingSettingsView,
+    RazorpayWebhookView, PublicPropertyListView, PublicRoomListView, GuestListView,
+    CollectionReportView, StaffReviewListView, StaffReviewReplyView, PublicReviewListView,
+)
+
 
 router = DefaultRouter()
 router.register(r'properties', PropertyViewSet, basename='property')
@@ -29,5 +52,25 @@ router.register(r'reservations', BookingViewSet, basename='reservation')
 
 urlpatterns = [
     path('customers/register/', CustomerRegisterView.as_view(), name='customer-register'),
+    path('settings/', BookingSettingsView.as_view(), name='booking-settings'),
+    path('guests/', GuestListView.as_view(), name='booking-guests'),
+    path('collections/', CollectionReportView.as_view(), name='booking-collections'),
+    path('reviews/', StaffReviewListView.as_view(), name='booking-reviews'),
+    path('reviews/<int:review_id>/reply/', StaffReviewReplyView.as_view(), name='booking-review-reply'),
+    path('public/<int:org_id>/reviews/', PublicReviewListView.as_view(), name='public-reviews'),
+    path('razorpay/webhook/', RazorpayWebhookView.as_view(), name='razorpay-webhook'),
+    path('assistant/', GuestAssistantView.as_view(), name='guest-assistant'),
+    path('wishlist/', WishlistView.as_view(), name='guest-wishlist'),
+    path('wishlist/<int:org_id>/', WishlistItemView.as_view(), name='guest-wishlist-item'),
+    path('me/notifications/', GuestNotificationsView.as_view(), name='guest-notifications'),
+    path('dashboard/', DashboardView.as_view(), name='staff-dashboard'),
+    path('calendar/', RoomCalendarView.as_view(), name='room-calendar'),
+    path('walk_in/', WalkInBookingView.as_view(), name='walk-in-booking'),
+    path('staff/notifications/', StaffNotificationsView.as_view(), name='staff-notifications'),
+    path('export/bookings.csv', BookingsExportView.as_view(), name='export-bookings'),
+    path('export/collections.csv', CollectionsExportView.as_view(), name='export-collections'),
+    path('public/<int:org_id>/properties/', PublicPropertyListView.as_view(), name='public-properties'),
+    path('public/<int:org_id>/rooms/', PublicRoomListView.as_view(), name='public-rooms'),
+    path('public/<int:org_id>/rooms/<int:room_id>/', PublicRoomListView.as_view(), name='public-room-detail'),
     path('', include(router.urls)),
 ]

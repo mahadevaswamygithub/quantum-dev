@@ -57,8 +57,8 @@ const OverviewTab = ({ userData, attendance, salary, leaves }) => {
         {[
           { label: 'Days Present', value: thisMonth, sub: 'This month', icon: Clock, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-500/10' },
           { label: 'Pending Leaves', value: pendingLeaves, sub: 'Awaiting approval', icon: CalendarDays, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-500/10' },
-          { label: 'Last Salary', value: lastSalary ? `₹${lastSalary.net_salary?.toLocaleString()}` : '—', sub: lastSalary?.month || 'No data', icon: DollarSign, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10' },
-          { label: 'Documents', value: '—', sub: 'Uploaded', icon: Briefcase, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-500/10' },
+          { label: 'Last Salary', value: lastSalary ? `₹${lastSalary.net_salary?.toLocaleString()}` : '-', sub: lastSalary?.month || 'No data', icon: DollarSign, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Documents', value: '-', sub: 'Uploaded', icon: Briefcase, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-500/10' },
         ].map((s, i) => {
           const Icon = s.icon;
           return (
@@ -83,7 +83,7 @@ const OverviewTab = ({ userData, attendance, salary, leaves }) => {
             { label: 'Phone', value: userData.phone, icon: Phone },
             { label: 'Organization', value: userData.organization_name, icon: Building2 },
             { label: 'Role', value: userData.role, icon: Shield },
-            { label: 'Date of Joining', value: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : '—', icon: Calendar },
+            { label: 'Date of Joining', value: userData.created_at ? new Date(userData.created_at).toLocaleDateString() : '-', icon: Calendar },
           ].map((r, i) => {
             const Icon = r.icon;
             return (
@@ -91,7 +91,7 @@ const OverviewTab = ({ userData, attendance, salary, leaves }) => {
                 <Icon className="w-4 h-4 text-slate-500 flex-shrink-0" />
                 <div>
                   <p className="text-xs text-slate-500">{r.label}</p>
-                  <p className="text-sm text-slate-900 dark:text-white">{r.value || '—'}</p>
+                  <p className="text-sm text-slate-900 dark:text-white">{r.value || '-'}</p>
                 </div>
               </div>
             );
@@ -178,9 +178,9 @@ const MyAttendance = ({ userId }) => {
                     <td className="px-4 py-3 text-sm text-slate-900 dark:text-white">{r.date}</td>
                     <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{new Date(r.date).toLocaleDateString('en', { weekday: 'short' })}</td>
                     <td className="px-4 py-3"><Badge label={r.status} color={statusColor[r.status] || 'blue'} /></td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_in || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_out || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{r.hours_worked ? `${r.hours_worked}h` : '—'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_in || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{r.check_out || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-500 dark:text-slate-400">{r.hours_worked ? `${r.hours_worked}h` : '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -503,7 +503,7 @@ const EmployeePortal = () => {
       <div className="flex flex-1 min-h-0">
         <Sidebar userRole="EMPLOYEE" collapsed={sidebarCollapsed} onToggleCollapse={() => setSidebarCollapsed(p => !p)} />
 
-        <div className="flex-1 p-6 overflow-y-auto min-h-0">
+        <div className="flex-1 p-3 sm:p-6 overflow-y-auto min-h-0">
           <div className="mb-5">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">My Portal</h1>
             <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">Your personal information and records</p>

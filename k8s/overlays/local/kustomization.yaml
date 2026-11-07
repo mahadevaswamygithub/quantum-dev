@@ -1,0 +1,65 @@
+# Try the whole stack on Docker Desktop's Kubernetes (Settings > Kubernetes > Enable).
+# Postgres runs in the cluster, one copy of everything, no HTTPS. See k8s/README.md.
+# The values below are for a throwaway local cluster only, never real secrets.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: corex
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - postgres.yaml
+
+images:
+  - name: corex-backend
+    newTag: local
+  - name: corex-frontend
+    newTag: local
+  - name: corex-orchestrator
+    newTag: local
+
+replicas:
+  - name: backend
+    count: 1
+  - name: frontend
+    count: 1
+
+configMapGenerator:
+  - name: corex-config
+    behavior: merge
+    literals:
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+      - PUBLIC_TENANT_DOMAIN=localhost
+      - FRONTEND_URL=http://localhost:8080
+      - CORS_ALLOWED_ORIGINS=http://localhost:8080
+      - DB_HOST=postgres
+      - DB_NAME=corex_db
+      - DB_USER=postgres
+  - name: orchestrator-config
+    behavior: merge
+    literals:
+      # Ollama running on your machine (Docker Desktop resolves this name).
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+
+secretGenerator:
+  - name: corex-secrets
+    literals:
+      - SECRET_KEY=local-cluster-only-0f8a1c2e9b7d4a6f3e5c8b1a2d4f6e8c0b2a4d6f
+      - DB_PASSWORD=local-cluster-only
+  - name: orchestrator-secrets
+    literals:
+      - LLM_PROVIDER=ollama
+
+patches:
+  # No S3 locally: uploads go to a scratch folder (lost when the pod restarts).
+  - target:
+      kind: Deployment
+      name: backend
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value: {name: media, emptyDir: {}}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: media, mountPath: /app/media}
