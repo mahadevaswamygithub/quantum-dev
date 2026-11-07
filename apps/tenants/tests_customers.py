@@ -63,7 +63,10 @@ class CustomerLifecycleTests(TestCase):
         self.assertFalse(admin.has_usable_password())                    # sets it from the emailed link
         self.assertIsNone(org.parent_organization)
         subjects = sorted(m.subject for m in mail.outbox)
-        self.assertTrue(any('invited' in s for s in subjects), subjects)
+        self.assertTrue(any(s.startswith('Welcome to CoreX') for s in subjects), subjects)
+        welcome = next(m for m in mail.outbox if m.subject.startswith('Welcome to CoreX'))
+        self.assertIn('/reset-password/', welcome.body)
+        self.assertIn('approves', welcome.body)                          # pending: says it goes live after review
         self.assertTrue(any('waiting for approval' in s for s in subjects), subjects)
         self.assertFalse(Organization.objects.bookable().filter(id=org.id).exists())   # hidden from guests
 
@@ -148,6 +151,36 @@ class CustomerLifecycleTests(TestCase):
                                          'email': 'h@hill.test', 'property_limit': 1}, user=self.owner)
         self.assertEqual(created.status_code, 201, created.data)
         self.assertEqual((created.data['status'], created.data['account_type']), ('ACTIVE', 'STP'))
+
+    def test_welcome_email_and_resend(self):
+        listing = PlatformCustomerViewSet.as_view({'post': 'create'})
+        with self.captureOnCommitCallbacks(execute=True):
+            r = call(listing, 'post', {'name': 'Hill Inn', 'first_name': 'Hema', 'last_name': 'I',
+                                       'email': 'hema@hill.test'}, user=self.owner)
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ['hema@hill.test'])
+        self.assertEqual(msg.subject, 'Welcome to CoreX: set your password for Hill Inn')
+        self.assertIn('is ready', msg.body)                               # created by the owner: ready to use
+        html = msg.alternatives[0][0]
+        self.assertIn('Set your password', html)
+        self.assertIn('/reset-password/', html)
+
+        resend = PlatformCustomerViewSet.as_view({'post': 'resend_welcome'})
+        mail.outbox.clear()
+        r = call(resend, 'post', user=self.owner, pk=r.data['id'])
+        self.assertEqual(r.status_code, 200, r.data)
+        self.assertEqual(r.data['sent'], ['hema@hill.test'])
+        self.assertEqual(len(mail.outbox), 1)
+
+        admin = User.objects.get(email='hema@hill.test')        # once the password is set: no more resends
+        admin.set_password(PASSWORD)
+        admin.save()
+        org_id = admin.organization.id
+        self.assertEqual(call(resend, 'post', user=self.owner, pk=org_id).status_code, 400)
+        hotel_admin = User.objects.create_user(username='x', email='x@x.test', password=PASSWORD, role='STP_ADMIN')
+        self.assertEqual(call(resend, 'post', user=hotel_admin, pk=org_id).status_code, 403)
 
     def test_single_business_property_limit(self):
         org, admin = create_customer(account_type='STP', name='Hill Inn', first_name='H', last_name='I',

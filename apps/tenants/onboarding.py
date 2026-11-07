@@ -60,7 +60,6 @@ def create_customer(*, account_type, name, first_name, last_name, email, phone='
     """A new customer account and its admin. The admin gets an email link to set
     their password (which also proves they own the address)."""
     from apps.users.models import User
-    from apps.users.serializers.users import send_invite_email
     if account_type not in ADMIN_ROLE:
         raise ValueError('account_type must be MSP or STP')
     with transaction.atomic():
@@ -71,10 +70,84 @@ def create_customer(*, account_type, name, first_name, last_name, email, phone='
             password=None, organization=org, role=ADMIN_ROLE[account_type], phone=phone or None,
             is_auto_generated=True,
         )
-        transaction.on_commit(lambda: send_invite_email(admin))
+        transaction.on_commit(lambda: send_welcome_email(admin))
         if signed_up:
             transaction.on_commit(lambda: _notify_platform_of_signup(org, admin))
     return org, admin
+
+
+def set_password_link(user):
+    """One-time link to choose a password (same token as "forgot password")."""
+    from django.contrib.auth.tokens import default_token_generator
+    from django.utils.encoding import force_bytes
+    from django.utils.http import urlsafe_base64_encode
+    uid = urlsafe_base64_encode(force_bytes(user.pk))
+    return f'{settings.FRONTEND_URL}/reset-password/{uid}/{default_token_generator.make_token(user)}'
+
+
+def _welcome_html(heading, paragraphs, button_label, link, steps, footer):
+    """Simple, email-client-safe HTML (inline styles, one table, no images)."""
+    from django.utils.html import escape
+    paras = ''.join(f'<p style="margin:0 0 14px;color:#334155;font-size:15px;line-height:1.6">{escape(p)}</p>'
+                    for p in paragraphs)
+    items = ''.join(f'<li style="margin:0 0 6px">{escape(s)}</li>' for s in steps)
+    return f"""<!doctype html><html><body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden">
+<tr><td style="background:#0f172a;padding:20px 28px;color:#ffffff;font-size:20px;font-weight:bold">Core<span style="color:#22c55e">X</span></td></tr>
+<tr><td style="padding:28px">
+<h1 style="margin:0 0 16px;color:#0f172a;font-size:22px">{escape(heading)}</h1>
+{paras}
+<p style="margin:22px 0"><a href="{escape(link)}" style="display:inline-block;background:#16a34a;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:10px">{escape(button_label)}</a></p>
+<p style="margin:0 0 18px;color:#64748b;font-size:13px">If the button doesn't work, copy this link into your browser:<br><a href="{escape(link)}" style="color:#16a34a;word-break:break-all">{escape(link)}</a></p>
+<p style="margin:0 0 6px;color:#0f172a;font-weight:bold;font-size:14px">Next steps</p>
+<ol style="margin:0 0 18px;padding-left:20px;color:#334155;font-size:14px;line-height:1.6">{items}</ol>
+<p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.5">{escape(footer)}</p>
+</td></tr></table></td></tr></table></body></html>"""
+
+
+def send_welcome_email(user):
+    """Welcome a new organization admin and ask them to set their password.
+    Wording depends on the account: waiting for approval (self sign-up),
+    ready to use (created by the platform owner), or a hotel added by a group.
+    Returns True if sent (failures are logged by apps.core.email)."""
+    from apps.core.email import send_email
+    org = user.organization
+    link = set_password_link(user)
+    days = max(1, round(getattr(settings, 'PASSWORD_RESET_TIMEOUT', 259200) / 86400))
+    login_url = f'{settings.FRONTEND_URL}/login'
+    name = user.first_name or 'there'
+
+    if org.parent_organization_id:
+        heading = f'You manage {org.name} on CoreX'
+        intro = [f'Hello {name},',
+                 f'{org.parent_organization.name} added you as the admin of {org.name} on CoreX, '
+                 'where you manage rooms, bookings, payments and guests.']
+        steps = ['Set your password with the button above.', f'Sign in at {login_url} with {user.email}.',
+                 'Add your rooms, photos and prices, then share your booking link with guests.']
+    elif org.status == 'PENDING':
+        heading = f'Welcome to CoreX, {name}'
+        intro = [f'Thanks for signing up {org.name}.',
+                 'Your account is created. Set your password to start setting up; '
+                 'your hotels go live for guests once the CoreX team approves the account '
+                 '(we will email you).']
+        steps = ['Set your password with the button above.', f'Sign in at {login_url} with {user.email}.',
+                 'Add your rooms, photos and prices.', 'We review your account and email you when it’s live.']
+    else:
+        heading = f'Welcome to CoreX, {name}'
+        intro = [f'Your CoreX account for {org.name} is ready, and you are its admin.',
+                 'Set your password to sign in.']
+        steps = ['Set your password with the button above.', f'Sign in at {login_url} with {user.email}.',
+                 ('Add your hotels and their managers.' if org.tenant_type == 'MSP'
+                  else 'Add your rooms, photos and prices, then share your booking link with guests.')]
+
+    footer = (f'This link works once and expires in {days} day{"s" if days != 1 else ""}. '
+              f'After that, use "Forgot password" on {login_url}. '
+              'If you weren’t expecting this email, you can ignore it.')
+    text = '\n\n'.join(intro) + f'\n\nSet your password:\n{link}\n\nNext steps:\n' + \
+        '\n'.join(f'{i}. {s}' for i, s in enumerate(steps, 1)) + f'\n\n{footer}\n'
+    return send_email(f'Welcome to CoreX: set your password for {org.name}', text, user.email,
+                      html=_welcome_html(heading, intro, 'Set your password', link, steps, footer))
 
 
 def customer_admins(org):

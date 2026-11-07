@@ -9,6 +9,8 @@ export const platformAPI = {
   get: (id) => api.get(`${base}/${id}/`),
   create: (data) => api.post(`${base}/`, data),
   setLimit: (id, property_limit) => api.patch(`${base}/${id}/`, { property_limit }),
+  // Welcome / set-password email again, to admins who haven't set a password yet.
+  resendWelcome: (id) => api.post(`${base}/${id}/resend_welcome/`),
   // action: approve | suspend | reactivate | close
   setStatus: (id, action, reason = '') => api.post(`${base}/${id}/${action}/`, { reason }),
 };

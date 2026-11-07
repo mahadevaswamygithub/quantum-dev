@@ -14,11 +14,12 @@ from django.core.mail import EmailMessage, get_connection, send_mail
 logger = logging.getLogger(__name__)
 
 
-def send_email(subject, body, to):
-    """Send a plain-text email from the platform address. True on success; logs and returns False on failure."""
+def send_email(subject, body, to, html=None):
+    """Send an email from the platform address: plain text, plus an HTML version
+    when `html` is given. True on success; logs and returns False on failure."""
     recipients = [to] if isinstance(to, str) else list(to)
     try:
-        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=False)
+        send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients, fail_silently=False, html_message=html)
         return True
     except Exception:  # SMTP auth/connection errors, bad config, etc.
         logger.exception('Failed to send email %r to %s', subject, ', '.join(recipients))

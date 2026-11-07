@@ -84,8 +84,7 @@ class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSer
 
     def create(self, validated_data):
         from django.db import transaction
-        from apps.users.serializers.users import send_invite_email
-        from .onboarding import create_organization, unique_username
+        from .onboarding import create_organization, send_welcome_email, unique_username
         validated_data.pop('parent_organization_id', None)
         parent = validated_data.pop('parent')
         admin_first_name = validated_data.pop('admin_first_name')
@@ -108,7 +107,7 @@ class OrganizationCreateSerializer(RoundedCoordinatesMixin, serializers.ModelSer
                 role='STP_ADMIN',
                 is_auto_generated=True,
             )
-            transaction.on_commit(lambda: send_invite_email(admin))
+            transaction.on_commit(lambda: send_welcome_email(admin))
         return organization
 
 class OwnOrganizationSerializer(RoundedCoordinatesMixin, serializers.ModelSerializer):

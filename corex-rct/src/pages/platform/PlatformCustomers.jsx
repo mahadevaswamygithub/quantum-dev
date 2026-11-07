@@ -133,6 +133,12 @@ const CustomerModal = ({ customerId, onClose, onChanged }) => {
     finally { setBusy(''); }
   };
   const act = (action, why = '') => run(action, () => platformAPI.setStatus(customerId, action, why));
+  const [notice, setNotice] = useState('');
+  useEffect(() => { setNotice(''); }, [customerId]);
+  const resendWelcome = () => run('welcome', async () => {
+    const { data } = await platformAPI.resendWelcome(customerId);
+    setNotice(`Welcome email sent to ${data.sent.join(', ')}.`);
+  });
   const saveLimit = () => run('limit', () => platformAPI.setLimit(customerId, limit === '' ? null : Number(limit)));
 
   return (
@@ -170,13 +176,24 @@ const CustomerModal = ({ customerId, onClose, onChanged }) => {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Admins</h3>
               <ul className="divide-y divide-slate-100 dark:divide-slate-700 rounded-xl border border-slate-200 dark:border-slate-700">
                 {c.admins.map((a) => (
-                  <li key={a.email} className="flex items-center justify-between px-3 py-2 text-sm">
-                    <span className="text-slate-900 dark:text-white">{a.name || a.email}<span className="text-slate-500 dark:text-slate-400"> · {a.email}</span></span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400">{a.last_login ? `Last sign-in ${fmtDate(a.last_login)}` : 'Hasn’t signed in yet'}</span>
+                  <li key={a.email} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-3 py-2 text-sm">
+                    <span className="min-w-0 break-all text-slate-900 dark:text-white">{a.name || a.email}<span className="text-slate-500 dark:text-slate-400"> · {a.email}</span></span>
+                    <span className={`text-xs ${a.invite_pending ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                      {a.invite_pending ? 'Hasn’t set a password yet' : a.last_login ? `Last sign-in ${fmtDate(a.last_login)}` : 'Hasn’t signed in yet'}
+                    </span>
                   </li>
                 ))}
                 {!c.admins.length && <li className="px-3 py-2 text-sm text-slate-500">No active admin.</li>}
               </ul>
+              {c.admins.some((a) => a.invite_pending) && (
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <Button variant="secondary" icon={Mail} disabled={!!busy} onClick={resendWelcome}>
+                    {busy === 'welcome' ? 'Sending...' : 'Resend welcome email'}
+                  </Button>
+                  <span className="text-xs text-slate-500 dark:text-slate-400">Sends a new set-password link.</span>
+                </div>
+              )}
+              {notice && <p className="mt-2 text-sm text-green-700 dark:text-green-400">{notice}</p>}
             </section>
 
             <section>

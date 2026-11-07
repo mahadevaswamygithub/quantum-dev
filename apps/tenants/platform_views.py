@@ -21,7 +21,12 @@ from apps.activity.utils import log_activity
 from apps.users.models import User
 
 from .models import Organization
-from .onboarding import create_customer, customer_admins, set_customer_status
+from .onboarding import create_customer, customer_admins, send_welcome_email, set_customer_status
+
+
+def _invite_pending(user):
+    """Created by invite and hasn't chosen a password yet."""
+    return user.last_login is None and not user.has_usable_password()
 
 
 class IsPlatformAdmin(BasePermission):
@@ -54,7 +59,7 @@ def _row(org, admins, counts):
         'is_active': org.is_active, 'signed_up': org.signed_up, 'created_on': org.created_on,
         'property_limit': org.property_limit, 'property_count': counts.get(org.id, 0),
         'admin': next(({'name': a.get_full_name(), 'email': a.email, 'phone': a.phone,
-                        'invite_pending': a.last_login is None and not a.has_usable_password()}
+                        'invite_pending': _invite_pending(a)}
                        for a in admins.get(org.id, [])), None),
     }
 
@@ -120,7 +125,8 @@ class PlatformCustomerViewSet(viewsets.ViewSet):
         from apps.bookings.models import Booking
         data.update({
             'hotels': hotels,
-            'admins': [{'name': a.get_full_name(), 'email': a.email, 'last_login': a.last_login}
+            'admins': [{'name': a.get_full_name(), 'email': a.email, 'last_login': a.last_login,
+                        'invite_pending': _invite_pending(a)}
                        for a in customer_admins(org)],
             'staff': User.objects.filter(organization_id__in=member_ids).exclude(role='CUSTOMER').count(),
             'bookings_30d': Booking.objects.filter(organization_id__in=member_ids, created_at__gte=since).count(),
@@ -159,6 +165,28 @@ class PlatformCustomerViewSet(viewsets.ViewSet):
                             status=status.HTTP_400_BAD_REQUEST)
         set_customer_status(org, new_status, reason=str(request.data.get('reason') or ''), request=request)
         return Response(self._rows([org])[0])
+
+    @action(detail=True, methods=['post'])
+    def resend_welcome(self, request, pk=None):
+        """Email the welcome / set-password link again to this customer's admins
+        who haven't set a password yet. Never to anyone who has one: that would
+        be a password reset nobody asked for."""
+        org = self._get(pk)
+        if not org:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        pending = [a for a in customer_admins(org) if _invite_pending(a)]
+        if not pending:
+            return Response({'error': 'Every admin has already set a password. '
+                                      'They can use "Forgot password" on the sign-in page.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        sent = [a.email for a in pending if send_welcome_email(a)]
+        failed = [a.email for a in pending if a.email not in sent]
+        log_activity(request, 'UPDATE', obj=org, organization=org,
+                     changes={'welcome_email': ['', f'resent to {", ".join(sent) or "nobody"}']})
+        if not sent:
+            return Response({'error': 'The email could not be sent. Check the email settings (EMAIL_HOST_PASSWORD).',
+                             'failed': failed}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'sent': sent, 'failed': failed})
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
