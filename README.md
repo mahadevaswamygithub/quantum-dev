@@ -178,6 +178,52 @@ Frontend then serves on `http://localhost` (port 80) and proxies `/api` and
 is needed. See the comments at the top of `docker-compose.prod.yml` for what
 else differs from the dev compose file.
 
+### Public demo from your PC (free)
+
+Runs the production build on your own computer and gives it a public
+`https://….trycloudflare.com` link through a free Cloudflare quick tunnel
+(no account needed). Uses your development database and photos.
+
+It needs two files that stay on your machine and are not in git:
+`docker-compose.demo.yml` and `.env.prod` (a copy of `.env` with
+`DEBUG=False`, a strong `SECRET_KEY`,
+`ALLOWED_HOSTS=localhost,127.0.0.1,.trycloudflare.com`,
+`TENANT_FALLBACK_TO_PUBLIC=True` and `PUBLIC_TENANT_DOMAIN=localhost`), plus
+the `TENANT_FALLBACK_TO_PUBLIC` setting in `corex/settings.py` (it lets the app
+answer on the tunnel's random hostname).
+
+One-time: install the tunnel tool with `winget install Cloudflare.cloudflared`.
+
+1. Open **Docker Desktop** and wait until it's running.
+2. Start the app in demo mode (PowerShell, in the project folder). The first
+   line stops the development containers; the second builds and starts the
+   demo (a few minutes; it always picks up your latest code):
+   ```powershell
+   docker compose down
+   docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml --env-file .env.prod up -d --build
+   ```
+   Check it at http://localhost.
+3. Open the public link, in a new **Command Prompt** window (in PowerShell,
+   put `&` before the command):
+   ```
+   "C:\Program Files (x86)\cloudflared\cloudflared.exe" tunnel --url http://localhost:80
+   ```
+   Share the `https://….trycloudflare.com` link it prints. It's a **new link
+   each time**, and the app accepts it automatically. Keep the window open.
+4. Before the demo: turn off sleep (Settings → System → Power → Never while
+   plugged in), and start Ollama if you want AI answers in the chat. Everyone
+   signs in again once (the demo uses its own secret key).
+5. When you're done: **Ctrl+C** in the tunnel window, then switch back to
+   development:
+   ```powershell
+   docker compose -f docker-compose.prod.yml -f docker-compose.demo.yml --env-file .env.prod down
+   docker compose up -d
+   ```
+
+The link works only while the window is open and the PC is on and online
+(no uptime guarantee from Cloudflare for quick tunnels). Email links point to
+`FRONTEND_URL` in `.env.prod`, not the tunnel address.
+
 ### Kubernetes
 
 For several servers, autoscaling and zero-downtime deploys, see
