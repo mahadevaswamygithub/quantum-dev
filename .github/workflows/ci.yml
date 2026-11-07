@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main, 'feature/**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint + tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: corex_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DEBUG: 'True'
+      SECRET_KEY: ci-only-not-a-secret-key-0123456789abcdef
+      DB_NAME: corex_db
+      DB_USER: postgres
+      DB_PASSWORD: ci-only-password
+      DB_HOST: localhost
+      DB_PORT: '5432'
+      GUEST_ASSISTANT_LLM: 'False'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+      - run: pip install -r requirements.txt ruff
+      - name: Lint (pyflakes rules)
+        run: ruff check apps chat corex --select F
+      - name: Migrations are up to date
+        run: python manage.py makemigrations --check --dry-run
+      - name: Tests
+        run: python manage.py test apps --noinput
+
+  frontend:
+    name: Frontend (tests + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: corex-rct
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: corex-rct/package-lock.json
+      - run: npm ci
+      - run: npx vitest run
+      - run: npm run build

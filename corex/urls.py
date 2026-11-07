@@ -10,6 +10,8 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
+
+from apps.core.health import liveness, readiness
 from rest_framework.routers import DefaultRouter
 
 from apps.users.views import (
@@ -29,6 +31,8 @@ router.register(r'list', UserViewSet, basename='tenant-user')
 urlpatterns = [
     path('admin/', admin.site.urls),
 
+    path('api/health/', liveness, name='tenant-health-live'),
+    path('api/health/ready/', readiness, name='tenant-health-ready'),
     path('api/', include([
         path('users/', include([
             path('register/',        UserRegistrationView.as_view(), name='tenant-auth-register'),

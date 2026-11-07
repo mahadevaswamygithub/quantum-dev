@@ -239,3 +239,27 @@ The Celery terminal should show `celery@<host> ready.` and no
 Then log in to the app at `http://localhost:3000` and open the chat
 assistant (bottom-right bubble, hidden for Employee-role users) to exercise
 the full chain end-to-end.
+
+## Production checklist (reliability)
+
+Run `python manage.py check --deploy` on the server: it warns about anything below that's missing.
+
+| Setting (`.env.prod`) | Why |
+|---|---|
+| `CACHE_USE_REDIS=True` | Login lockouts and rate limits shared by every server |
+| `USE_S3=True` + `S3_*` | Uploads in object storage (AWS S3, Cloudflare R2, Wasabi, MinIO) so 2+ servers see the same files |
+| `BOOKING_EMAILS_VIA_CELERY=True` | Booking emails sent by the Celery worker with retries (falls back to in-process if Redis is down) |
+| `SENTRY_DSN` | Error tracking; every error is tagged with the request's `X-Request-ID` |
+| `LOG_FORMAT=json` | One JSON log line per event, each with `request_id` |
+
+Run **one** `celery-beat` (scheduler) and one or more `celery` workers; `docker-compose.prod.yml` includes both.
+
+Health checks for load balancers / uptime monitors:
+- `GET /api/health/`: the process is up.
+- `GET /api/health/ready/`: database, cache and storage answer (503 if not).
+
+Every response carries `X-Request-ID`; ask customers to quote it in support tickets, then search logs/Sentry for it.
+
+CI (`.github/workflows/ci.yml`) runs lint, migrations check, backend tests on Postgres, and frontend tests + build on every push and pull request.
+
+Load testing: see `loadtests/locustfile.py` (Locust). Run it against a staging copy, never production without notice.

@@ -1,8 +1,11 @@
-"""Emails to guests about their bookings, sent as the property (apps.core.email.send_org_email).
+"""Emails about bookings, sent as the property (apps.core.email.send_org_email).
 
-Sent after the database change commits, on a background thread, so a slow or
-broken mail server never slows down or breaks a booking. Set
-BOOKING_EMAILS_ASYNC = False (tests do) to send inline.
+Queued after the database change commits, so a slow or broken mail server
+never slows down or breaks a booking:
+- BOOKING_EMAILS_VIA_CELERY=True (production): a Celery task with retries, so
+  an email survives a web-server restart and a mail-server hiccup.
+- otherwise, or if the broker is unreachable: a background thread.
+Set BOOKING_EMAILS_ASYNC = False (tests do) to send inline.
 """
 import logging
 import threading
@@ -48,19 +51,32 @@ def _enabled(booking):
     return OrgEmailSettings.for_org(booking.organization).send_booking_emails
 
 
-def _deliver(booking_id, kind):
+PROPERTY_CANCEL_REQUEST = 'property_cancel_request'
+
+
+def send_now(booking_id, kind):
+    """Build and send one email. Raises on failure (so Celery can retry);
+    a booking that no longer exists is silently skipped."""
     from .models import Booking
+    if kind == PROPERTY_CANCEL_REQUEST:
+        _send_cancel_request_to_property(booking_id)
+        return
+    booking = (Booking.objects.select_related('organization', 'organization__booking_settings', 'room', 'property', 'customer')
+               .filter(pk=booking_id).first())
+    if not booking or not _enabled(booking) or not _recipient(booking):
+        return
+    subject, body, attach_voucher = BUILDERS[kind](booking)
+    attachments = []
+    if attach_voucher:
+        from .voucher import booking_reference, build_voucher_pdf
+        attachments.append((f'booking-{booking_reference(booking)}.pdf', build_voucher_pdf(booking), 'application/pdf'))
+    send_org_email(booking.organization, subject, body, _recipient(booking), attachments)
+
+
+def _deliver(booking_id, kind):
+    """Best effort: send and log (never raise)."""
     try:
-        booking = (Booking.objects.select_related('organization', 'organization__booking_settings', 'room', 'property', 'customer')
-                   .get(pk=booking_id))
-        if not _enabled(booking) or not _recipient(booking):
-            return
-        subject, body, attach_voucher = BUILDERS[kind](booking)
-        attachments = []
-        if attach_voucher:
-            from .voucher import booking_reference, build_voucher_pdf
-            attachments.append((f'booking-{booking_reference(booking)}.pdf', build_voucher_pdf(booking), 'application/pdf'))
-        send_org_email(booking.organization, subject, body, _recipient(booking), attachments)
+        send_now(booking_id, kind)
     except Exception:
         logger.exception('Booking email %s for booking %s failed', kind, booking_id)
 
@@ -74,13 +90,26 @@ def _deliver_in_thread(booking_id, kind):
         close_old_connections()
 
 
-def notify(booking, kind):
-    """Queue a guest email ('requested', 'confirmed', 'cancelled', 'checked_out')."""
+def _dispatch(booking_id, kind):
     if not getattr(settings, 'BOOKING_EMAILS_ASYNC', True):
-        _deliver(booking.id, kind)
+        _deliver(booking_id, kind)
         return
-    booking_id = booking.id
-    transaction.on_commit(lambda: threading.Thread(target=_deliver_in_thread, args=(booking_id, kind), daemon=True).start())
+
+    def queue():
+        if getattr(settings, 'BOOKING_EMAILS_VIA_CELERY', False):
+            try:
+                from .tasks import send_booking_email
+                send_booking_email.delay(booking_id, kind)
+                return
+            except Exception:  # broker down: don't lose the email
+                logger.warning('Celery unavailable - sending %s email for booking %s in-process', kind, booking_id)
+        threading.Thread(target=_deliver_in_thread, args=(booking_id, kind), daemon=True).start()
+    transaction.on_commit(queue)
+
+
+def notify(booking, kind):
+    """Queue a guest email ('requested', 'confirmed', 'cancelled', 'checked_out', 'cancel_requested', 'cancel_declined')."""
+    _dispatch(booking.id, kind)
 
 
 # ── message builders: (subject, body, attach PDF?) ────────────────────
@@ -150,39 +179,25 @@ BUILDERS = {
 
 
 # ── to the property ───────────────────────────────────────────────────
-def _deliver_cancel_request_to_property(booking_id):
+def _send_cancel_request_to_property(booking_id):
     from .models import Booking
-    try:
-        b = Booking.objects.select_related('organization', 'organization__booking_settings', 'room', 'property', 'customer').get(pk=booking_id)
-        to = b.organization.contact_email
-        if not to:
-            return
-        link = f"{settings.FRONTEND_URL}/stp/bookings"
-        send_org_email(
-            b.organization,
-            f'Cancellation request from {b.guest_name or b.customer.get_full_name()} (CX-{b.id:06d})',
-            "A guest has asked to cancel their booking after the free-cancellation window.\n\n"
-            + _stay_lines(b)
-            + f"Guest: {b.guest_name or b.customer.get_full_name()} · {b.guest_email or b.customer.email}"
-            + (f" · {b.guest_phone}" if b.guest_phone else '') + "\n"
-            + f"Reason: {b.cancel_request_reason}\n\nApprove or decline it in Bookings: {link}\n",
-            to,
-        )
-    except Exception:
-        logger.exception('Cancellation-request email to property for booking %s failed', booking_id)
+    b = (Booking.objects.select_related('organization', 'organization__booking_settings', 'room', 'property', 'customer')
+         .filter(pk=booking_id).first())
+    if not b or not b.organization.contact_email:
+        return
+    link = f"{settings.FRONTEND_URL}/stp/bookings"
+    send_org_email(
+        b.organization,
+        f'Cancellation request from {b.guest_name or b.customer.get_full_name()} (CX-{b.id:06d})',
+        "A guest has asked to cancel their booking after the free-cancellation window.\n\n"
+        + _stay_lines(b)
+        + f"Guest: {b.guest_name or b.customer.get_full_name()} · {b.guest_email or b.customer.email}"
+        + (f" · {b.guest_phone}" if b.guest_phone else '') + "\n"
+        + f"Reason: {b.cancel_request_reason}\n\nApprove or decline it in Bookings: {link}\n",
+        b.organization.contact_email,
+    )
 
 
 def notify_property_of_cancel_request(booking):
     """Tell the property (its contact email, if set) that a guest asked to cancel."""
-    if not getattr(settings, 'BOOKING_EMAILS_ASYNC', True):
-        _deliver_cancel_request_to_property(booking.id)
-        return
-    booking_id = booking.id
-
-    def run():
-        close_old_connections()
-        try:
-            _deliver_cancel_request_to_property(booking_id)
-        finally:
-            close_old_connections()
-    transaction.on_commit(lambda: threading.Thread(target=run, daemon=True).start())
+    _dispatch(booking.id, PROPERTY_CANCEL_REQUEST)

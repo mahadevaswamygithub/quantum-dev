@@ -103,6 +103,7 @@ INSTALLED_APPS = list(SHARED_APPS) + [
 ]
 
 MIDDLEWARE = [
+    'apps.core.observability.RequestIDMiddleware',
     'django_tenants.middleware.main.TenantMainMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -145,7 +146,7 @@ DATABASES = {
         'ENGINE': 'django_tenants.postgresql_backend',
         'NAME': config('DB_NAME', default='corex_db'),
         'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default='aEDq:c7y'),
+        'PASSWORD': config('DB_PASSWORD', default=''),  # set in .env - never commit a real password
         'HOST': config('DB_HOST', default='localhost'),
         'PORT': config('DB_PORT', default='5432'),
     }
@@ -265,6 +266,15 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+# Publishing must fail fast when Redis is down so web requests never hang
+# (booking emails then fall back to an in-process send).
+CELERY_BROKER_CONNECTION_TIMEOUT = 2
+CELERY_BROKER_TRANSPORT_OPTIONS = {'socket_connect_timeout': 2, 'socket_timeout': 5, 'max_retries': 1}
+CELERY_TASK_PUBLISH_RETRY = False
+CELERY_TASK_ACKS_LATE = True            # a task killed mid-run is redelivered
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+# Booking emails through Celery (retries, survive restarts). Needs a worker.
+BOOKING_EMAILS_VIA_CELERY = config('BOOKING_EMAILS_VIA_CELERY', default=False, cast=bool)
 # Periodic jobs - run by `celery -A corex beat` (see README → Redis + Celery).
 CELERY_BEAT_SCHEDULE = {
     'expire-pending-bookings': {
@@ -328,7 +338,7 @@ STORAGES = {
     # pictures, room images, documents) break with InvalidStorageError.
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
-    },
+    },  # replaced by S3 below when USE_S3=True
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
@@ -341,18 +351,50 @@ STORAGES = {
 MEDIA_URL = '/media/'
 MEDIA_ROOT = config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))
 
+# Production: keep uploads in S3-compatible object storage so every server
+# sees the same files and they survive a server being replaced. Works with
+# AWS S3, Cloudflare R2, Wasabi, MinIO (set S3_ENDPOINT_URL for non-AWS).
+USE_S3 = config('USE_S3', default=False, cast=bool)
+if USE_S3:
+    STORAGES['default'] = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'bucket_name': config('S3_BUCKET'),
+            'region_name': config('S3_REGION', default=None) or None,
+            'endpoint_url': config('S3_ENDPOINT_URL', default=None) or None,
+            'access_key': config('S3_ACCESS_KEY_ID', default=None) or None,   # or an IAM role
+            'secret_key': config('S3_SECRET_ACCESS_KEY', default=None) or None,
+            'custom_domain': config('S3_CUSTOM_DOMAIN', default=None) or None,  # e.g. a CDN in front
+            'location': config('S3_PREFIX', default='media'),
+            'file_overwrite': False,   # two uploads with the same name never clobber each other
+            'default_acl': None,       # bucket policy decides
+            # Photos and logos are public; signed URLs (True) for a private bucket.
+            'querystring_auth': config('S3_SIGNED_URLS', default=False, cast=bool),
+            'object_parameters': {'CacheControl': 'public, max-age=604800'},
+        },
+    }
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+# Every line carries the request ID (see apps.core.observability).
+# LOG_FORMAT=json in production for log shippers (CloudWatch, Loki, ELK…).
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'filters': {'request_id': {'()': 'apps.core.observability.RequestIDFilter'}},
+    'formatters': {
+        'plain': {'format': '%(asctime)s %(levelname)s [%(request_id)s] %(name)s: %(message)s'},
+        'json': {'()': 'apps.core.observability.JSONFormatter'},
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'filters': ['request_id'],
+            'formatter': config('LOG_FORMAT', default='plain'),
         },
     },
     'root': {
@@ -378,3 +420,14 @@ GUEST_ASSISTANT_LLM = config('GUEST_ASSISTANT_LLM', default=True, cast=bool)
 GUEST_ASSISTANT_LLM_URL = config('GUEST_ASSISTANT_LLM_URL', default='http://localhost:11434')
 GUEST_ASSISTANT_MODEL = config('GUEST_ASSISTANT_MODEL', default='llama3.2')
 GUEST_ASSISTANT_LLM_TIMEOUT = config('GUEST_ASSISTANT_LLM_TIMEOUT', default=25, cast=int)
+
+# Error tracking (optional). Errors arrive tagged with the request ID.
+SENTRY_DSN = config('SENTRY_DSN', default='')
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=config('SENTRY_ENVIRONMENT', default='production' if not DEBUG else 'development'),
+        traces_sample_rate=config('SENTRY_TRACES_SAMPLE_RATE', default=0.05, cast=float),
+        send_default_pii=False,   # no guest emails/IPs in error reports
+    )
