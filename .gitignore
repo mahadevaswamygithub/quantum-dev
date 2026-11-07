@@ -21,6 +21,9 @@
 # real Docker prod secrets (root and orchestrator/) — .env.prod.example stays tracked
 .env.prod
 
+# real Kubernetes secrets — only the *.env.example files are tracked
+/k8s/overlays/*/secrets/*.env
+
 # Django collectstatic output (Docker prod build only; dev doesn't generate this)
 /staticfiles
 

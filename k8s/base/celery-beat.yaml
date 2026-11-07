@@ -1,0 +1,64 @@
+# Scheduler for periodic jobs (e.g. expiring unpaid bookings).
+# Exactly ONE pod, ever: two would send every scheduled job twice. Hence
+# replicas: 1 and the Recreate strategy (the old pod stops before the new starts).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-beat
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: corex
+      app.kubernetes.io/component: celery-beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: corex
+        app.kubernetes.io/component: celery-beat
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-migrations
+          image: corex-backend
+          args: ["python", "manage.py", "wait_for_migrations", "--timeout", "900"]
+          envFrom:
+            - configMapRef: {name: corex-config}
+            - secretRef: {name: corex-secrets}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: beat
+          image: corex-backend
+          args: ["celery", "-A", "corex", "beat", "-l", "info", "--schedule", "/tmp/celerybeat-schedule"]
+          envFrom:
+            - configMapRef: {name: corex-config}
+            - secretRef: {name: corex-secrets}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

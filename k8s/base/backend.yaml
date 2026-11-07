@@ -1,0 +1,123 @@
+# Django API (gunicorn). Stateless: uploads go to S3 (USE_S3=True), sessions
+# and rate limits to Redis, so it scales horizontally (see the production HPA).
+#
+# The Service must be called "backend": the orchestrator calls
+# http://backend:8000, and that hostname has its own tenant Domain row
+# (bootstrap_public_tenant --domain backend, run by the migrate Job).
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+spec:
+  selector:
+    app.kubernetes.io/name: corex
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: corex
+      app.kubernetes.io/component: backend
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: corex
+        app.kubernetes.io/component: backend
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: corex
+              app.kubernetes.io/component: backend
+      initContainers:
+        # Start serving only once the migrate Job has updated the database.
+        - name: wait-for-migrations
+          image: corex-backend
+          args: ["python", "manage.py", "wait_for_migrations", "--timeout", "900"]
+          envFrom:
+            - configMapRef: {name: corex-config}
+            - secretRef: {name: corex-secrets}
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {memory: 384Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: backend
+          image: corex-backend
+          args:
+            - gunicorn
+            - corex.wsgi:application
+            - --bind=0.0.0.0:8000
+            - --workers=3
+            - --timeout=60
+            - --graceful-timeout=30
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef: {name: corex-config}
+            - secretRef: {name: corex-secrets}
+          # Probes send Host: backend, which is in ALLOWED_HOSTS and has a
+          # tenant Domain row; the pod IP would get a 400/404.
+          startupProbe:
+            httpGet: {path: /api/health/, port: http, httpHeaders: [{name: Host, value: backend}]}
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: {path: /api/health/, port: http, httpHeaders: [{name: Host, value: backend}]}
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            # Database, Redis and storage (apps/core/health.py). 503 = taken out of the Service.
+            httpGet: {path: /api/health/ready/, port: http, httpHeaders: [{name: Host, value: backend}]}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          lifecycle:
+            # Let the Service stop routing here before gunicorn shuts down.
+            preStop:
+              exec:
+                command: ["sleep", "5"]
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {memory: 1Gi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

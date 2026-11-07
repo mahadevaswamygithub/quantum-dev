@@ -196,10 +196,12 @@ SECURE_CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 # nginx or a load balancer that sets X-Forwarded-Proto): redirects http→https,
 # marks cookies Secure, and tells browsers to only ever use https (HSTS).
 HTTPS_ENABLED = config('HTTPS_ENABLED', default=False, cast=bool)
+# Internal health checks (Docker, Kubernetes probes) speak plain http. A 301 here
+# would make the readiness probe pass without checking anything (3xx = success).
+SECURE_REDIRECT_EXEMPT = [r'^api/health/']
 if HTTPS_ENABLED:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_SSL_REDIRECT = True
-    SECURE_REDIRECT_EXEMPT = [r'^api/health/?$']  # internal container health checks speak plain http
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
     SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=31536000, cast=int)

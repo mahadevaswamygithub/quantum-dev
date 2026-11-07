@@ -38,6 +38,10 @@ RUN npm run build
 
 FROM nginx:1.27-alpine AS prod
 COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# A template: filled in at start-up from BACKEND_UPSTREAM / NGINX_LOCAL_RESOLVERS
+# and written to /etc/nginx/conf.d/default.conf (see the notes in nginx.conf).
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+ENV BACKEND_UPSTREAM=backend:8000 \
+    NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]

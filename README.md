@@ -81,6 +81,12 @@ Frontend then serves on `http://localhost` (port 80) and proxies `/api` and
 is needed. See the comments at the top of `docker-compose.prod.yml` for what
 else differs from the dev compose file.
 
+### Kubernetes
+
+For several servers, autoscaling and zero-downtime deploys, see
+[k8s/README.md](k8s/README.md) (Kustomize manifests for production and for
+Docker Desktop's local cluster).
+
 ## Prerequisites
 
 - Python 3.10

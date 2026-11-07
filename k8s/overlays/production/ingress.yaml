@@ -1,0 +1,29 @@
+# HTTPS entry point. Assumes ingress-nginx and cert-manager (Let's Encrypt) are
+# installed; on a cloud load-balancer controller, change ingressClassName and
+# the annotations. Only the frontend is exposed; it proxies /api to Django.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: corex
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 20m
+    # Streaming chat replies.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "180"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [corex.example.com]
+      secretName: corex-tls
+  rules:
+    - host: corex.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  name: http

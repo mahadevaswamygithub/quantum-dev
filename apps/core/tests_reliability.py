@@ -50,6 +50,31 @@ class HealthAndRequestIdTests(TestCase):
         self.assertIn('"message": "hello world"', JSONFormatter().format(record))
 
 
+class WaitForMigrationsTests(TestCase):
+    def test_returns_when_up_to_date_and_fails_after_timeout(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        out = StringIO()
+        call_command('wait_for_migrations', timeout=5, stdout=out)
+        self.assertIn('up to date', out.getvalue())
+        with patch('apps.core.management.commands.wait_for_migrations.pending_migrations',
+                   return_value=[(('bookings', '9999_new'), False)]):
+            with self.assertRaisesMessage(CommandError, '1 migration(s) not applied'):
+                call_command('wait_for_migrations', timeout=0, interval=0, stdout=StringIO())
+
+    @override_settings(SECURE_SSL_REDIRECT=True)   # as with HTTPS_ENABLED=True; uses the real exempt list
+    def test_health_probes_not_redirected_to_https(self):
+        from django.http import HttpResponse
+        from django.middleware.security import SecurityMiddleware
+        mw = SecurityMiddleware(lambda request: HttpResponse('ok'))
+        rf = RequestFactory()
+        for path in ('/api/health/', '/api/health/ready/'):
+            self.assertEqual(mw(rf.get(path)).status_code, 200, path)
+        self.assertEqual(mw(rf.get('/api/bookings/')).status_code, 301)   # everything else still redirects
+
+
 class DeployCheckTests(SimpleTestCase):
     @override_settings(USE_S3=False, BOOKING_EMAILS_VIA_CELERY=False, SENTRY_DSN='',
                        CACHES={'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}})

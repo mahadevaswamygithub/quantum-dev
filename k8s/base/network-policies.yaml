@@ -1,0 +1,43 @@
+# Only enforced if the cluster's network plugin supports NetworkPolicy
+# (Calico, Cilium, the cloud providers' policy add-ons). Elsewhere they're ignored.
+
+# The orchestrator trusts the user/role headers it receives: only Django may call it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orchestrator-from-backend-only
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: corex
+      app.kubernetes.io/component: orchestrator
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: corex
+              app.kubernetes.io/component: backend
+      ports:
+        - port: 8002
+---
+# Redis has no password: only CoreX pods may reach it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-from-corex-only
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: corex
+      app.kubernetes.io/component: redis
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: In
+                values: [backend, celery-worker, celery-beat, orchestrator]
+      ports:
+        - port: 6379

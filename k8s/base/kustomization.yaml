@@ -1,0 +1,49 @@
+# CoreX on Kubernetes: the shared base. Use an overlay, not this folder directly:
+#   kubectl apply -k k8s/overlays/production     (see k8s/README.md)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: corex
+    includeSelectors: false
+
+resources:
+  - redis.yaml
+  - backend.yaml
+  - celery-worker.yaml
+  - celery-beat.yaml
+  - orchestrator.yaml
+  - frontend.yaml
+  - migrate-job.yaml
+  - network-policies.yaml
+
+# Settings that are not secret. Overlays add the site-specific ones
+# (domain, S3 bucket...) with `behavior: merge`. Secrets come from the overlay's
+# secretGenerator (corex-secrets, orchestrator-secrets).
+configMapGenerator:
+  - name: corex-config
+    literals:
+      - DEBUG=False
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - CACHE_USE_REDIS=True
+      - BOOKING_EMAILS_VIA_CELERY=True
+      - LOG_FORMAT=json
+      - LLM_ORCHESTRATOR_URL=http://orchestrator:8002
+      # Ingress controller + the frontend's nginx sit in front of Django.
+      - TRUSTED_PROXY_COUNT=2
+      # Migrations run once, in the corex-migrate Job, never on pod start.
+      - SKIP_MIGRATE=1
+      # The guest chat's optional Ollama model; off unless you run Ollama in the cluster.
+      - GUEST_ASSISTANT_LLM=False
+  - name: orchestrator-config
+    literals:
+      - DJANGO_API_BASE_URL=http://backend:8000
+      - REDIS_URL=redis://redis:6379/1
+      # Chat memory shared by every orchestrator pod.
+      - MEMORY_BACKEND=redis
+      - OLLAMA_BASE_URL=http://ollama:11434
+
+# Images are named corex-backend / corex-frontend / corex-orchestrator here;
+# each overlay maps them to a registry and tag with `images:`.
